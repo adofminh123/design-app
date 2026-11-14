@@ -157,7 +157,7 @@ function App() {
     localStorage.setItem('canvas_size', JSON.stringify(canvasSize));
   }, [elements, bgColor, customShapes, canvasSize]);
 
-  // KHỞI TẠO VỊ TRÍ BAN ĐẦU (Căn giữa canvas)
+  // KHỞI TẠO VỊ TRÍ BAN ĐẦU
   useEffect(() => {
     if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
       setStagePos({
@@ -252,11 +252,13 @@ function App() {
     });
   };
 
+  // HÀM XỬ LÝ CẢM ỨNG (SỬA LỖI VẼ BẰNG 1 NGÓN TAY)
   const handleTouchMove = (e) => {
     e.evt.preventDefault();
     const touch1 = e.evt.touches[0];
     const touch2 = e.evt.touches[1];
 
+    // NẾU CÓ 2 NGÓN TAY -> ZOOM
     if (touch1 && touch2) {
       isDrawing.current = false;
       if (stageRef.current.isDragging()) {
@@ -292,11 +294,41 @@ function App() {
       });
 
       lastDist.current = newDist;
+      return; // Thoát, không xử lý vẽ
+    }
+
+    // NẾU CHỈ CÓ 1 NGÓN TAY -> VẼ HOẶC KẺ THƯỚC
+    if (currentTool === 'brush' && isDrawing.current) {
+      const stage = e.target.getStage();
+      const transform = stage.getAbsoluteTransform().copy().invert();
+      const point = transform.point(stage.getPointerPosition());
+      
+      let lastLine = elements[elements.length - 1];
+      if (lastLine && lastLine.type === 'brush') {
+        lastLine.points = lastLine.points.concat([point.x, point.y]);
+        const newElements = elements.slice(0, elements.length - 1).concat(lastLine);
+        setElements(newElements);
+      }
+    } else if (isRulerMode && startPoint.current) {
+      const stage = e.target.getStage();
+      const transform = stage.getAbsoluteTransform().copy().invert();
+      const pos = transform.point(stage.getPointerPosition());
+      setTempLine(prev => ({ ...prev, points: [0, 0, pos.x - prev.x, pos.y - prev.y] }));
     }
   };
 
   const handleTouchEnd = () => {
     lastDist.current = 0;
+    if (isRulerMode && tempLine) {
+      const endX = tempLine.x + tempLine.points[2];
+      const endY = tempLine.y + tempLine.points[3];
+      const newLine = { id: uuidv4(), type: 'brush', points: [tempLine.x, tempLine.y, endX, endY], stroke: brushColor, strokeWidth: brushSize, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+      saveToHistory([...elements, newLine]);
+      setTempLine(null); startPoint.current = null;
+    } else if (isDrawing.current) {
+      isDrawing.current = false; 
+      saveToHistory(elements);
+    }
   };
 
   const handleStageMouseDown = (e) => {
@@ -450,19 +482,11 @@ function App() {
     } catch (error) { alert("Lỗi: " + error.message); setIsProcessing(false); }
   };
 
-  // HÀM TÍNH TOÁN TÂM MÀN HÌNH HIỆN TẠI
   const getCenterPosition = () => {
     if (!stageRef.current) return { x: 0, y: 0 };
-    
-    // Lấy tọa độ tâm của vùng hiển thị (trừ đi vị trí cuộn và chia cho tỉ lệ zoom)
     let visibleW = mainAreaSize.width;
     let visibleH = mainAreaSize.height;
-
-    // Trên mobile, nếu Bottom Sheet đang mở, ta cần dịch tâm lên trên một chút để không bị che khuất
-    if (isMobile && isRightOpen) {
-        visibleH = visibleH * 0.6; 
-    }
-
+    if (isMobile && isRightOpen) { visibleH = visibleH * 0.6; }
     const centerX = (visibleW / 2 - stagePos.x) / stageScale;
     const centerY = (visibleH / 2 - stagePos.y) / stageScale;
     return { x: centerX, y: centerY };
