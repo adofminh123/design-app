@@ -91,7 +91,6 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
 
-  // STATE ĐO KÍCH THƯỚC KHU VỰC LÀM VIỆC
   const [mainAreaSize, setMainAreaSize] = useState({ width: 800, height: 600 });
   const mainAreaRef = useRef(null);
   
@@ -116,7 +115,7 @@ function App() {
   }, []);
 
   const [isLeftOpen, setIsLeftOpen] = useState(!isMobile);
-  const [isRightOpen, setIsRightOpen] = useState(!isMobile);
+  const [isRightOpen, setIsRightOpen] = useState(true); 
   const [showTooltip, setShowTooltip] = useState(false);
 
   const [currentTool, setCurrentTool] = useState('select');
@@ -153,15 +152,40 @@ function App() {
     localStorage.setItem('canvas_size', JSON.stringify(canvasSize));
   }, [elements, bgColor, customShapes, canvasSize]);
 
-  // TỰ ĐỘNG CĂN GIỮA CANVAS KHI ĐỔI KÍCH THƯỚC HOẶC THAY ĐỔI KHU VỰC LÀM VIỆC
+  // TỰ ĐỘNG CĂN GIỮA (AUTO PAN) - XỬ LÝ CẢ MOBILE BOTTOM SHEET VÀ DESKTOP OVERLAY
   useEffect(() => {
     if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
+      let visibleHeight = mainAreaSize.height;
+      let visibleWidth = mainAreaSize.width;
+
+      if (isMobile) {
+        if (isRightOpen && selectedId) visibleHeight -= (window.innerHeight * 0.6); // Trừ đi 60vh của Bottom Sheet
+      } else {
+        if (isRightOpen && selectedId) visibleWidth -= 300;
+        if (isLeftOpen) visibleWidth -= 250;
+      }
+
+      if (visibleWidth < 100) visibleWidth = 100;
+      if (visibleHeight < 100) visibleHeight = 100;
+
+      if (selectedId && layerRef.current) {
+        const node = layerRef.current.findOne('#' + selectedId);
+        if (node) {
+          setStagePos({
+            x: visibleWidth / 2 - node.x() * stageScale,
+            y: visibleHeight / 2 - node.y() * stageScale
+          });
+          return;
+        }
+      }
+      
+      // Nếu không chọn ai, căn giữa Canvas
       setStagePos({
         x: mainAreaSize.width / 2,
         y: mainAreaSize.height / 2
       });
     }
-  }, [mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height]);
+  }, [mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height, selectedId, isRightOpen, isLeftOpen, isMobile]);
 
   useEffect(() => {
     if (selectedId && currentTool === 'select' && !isRulerMode) {
@@ -251,7 +275,6 @@ function App() {
   const handleStageMouseDown = (e) => {
     if (isRulerMode) {
       startPoint.current = e.target.getStage().getPointerPosition();
-      // Cần chuyển đổi tọa độ chuột thành tọa độ của Canvas
       const transform = e.target.getAbsoluteTransform().copy().invert();
       const pos = transform.point(startPoint.current);
       setTempLine({ x: pos.x, y: pos.y, points: [0, 0, 0, 0] });
@@ -277,7 +300,6 @@ function App() {
       const stage = e.target.getStage();
       const transform = stage.getAbsoluteTransform().copy().invert();
       const pos = transform.point(stage.getPointerPosition());
-      // Tính toán vị trí tương đối so với điểm bắt đầu
       setTempLine(prev => ({ ...prev, points: [0, 0, pos.x - prev.x, pos.y - prev.y] }));
       return;
     }
@@ -340,8 +362,9 @@ function App() {
     } else if (file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = () => {
-        const newEl = { id: uuidv4(), type: 'image', x: 100, y: 100, width: 250, height: 250, src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+        const newEl = { id: uuidv4(), type: 'image', x: 0, y: 0, width: 250, height: 250, src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
         saveToHistory([...elements, newEl]); setCurrentTool('select');
+        if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
       };
       reader.readAsDataURL(file);
     }
@@ -351,8 +374,9 @@ function App() {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      const newEl = { id: uuidv4(), type: 'image', x: 100, y: 100, width: 250, height: 250, src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+      const newEl = { id: uuidv4(), type: 'image', x: 0, y: 0, width: 250, height: 250, src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
       saveToHistory([...elements, newEl]); setCurrentTool('select');
+      if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
     };
     reader.readAsDataURL(file);
   };
@@ -398,7 +422,6 @@ function App() {
     } catch (error) { alert("Lỗi: " + error.message); setIsProcessing(false); }
   };
 
-  // THUẬT TOÁN CĂN GIỮA VẬT THỂ (Đã sửa lỗi tính toán tọa độ tuyệt đối)
   const centerSelected = () => {
     const node = layerRef.current.findOne('#' + selectedId);
     if (!node) return;
@@ -419,13 +442,19 @@ function App() {
     if (type === 'star') newEl = { ...base, type, innerRadius: 40, outerRadius: 80, numPoints: 5, fill: '#8b5cf6' };
     if (type === 'arrow') newEl = { ...base, type, points: [0, 0, 150, 0], stroke: '#000000', strokeWidth: 4, pointerLength: 20, pointerWidth: 20 };
     
-    if (newEl.type) { saveToHistory([...elements, newEl]); setSelectedId(newEl.id); }
+    if (newEl.type) { 
+      saveToHistory([...elements, newEl]); 
+      setSelectedId(newEl.id); 
+      if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); } 
+    }
   };
 
   const addCustomShape = (shapeTemplate) => {
     setCurrentTool('select');
     const newEl = { ...shapeTemplate, id: uuidv4(), x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
-    saveToHistory([...elements, newEl]); setSelectedId(newEl.id);
+    saveToHistory([...elements, newEl]); 
+    setSelectedId(newEl.id);
+    if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
 
   const saveCustomShape = () => {
@@ -445,7 +474,9 @@ function App() {
   const addPathShape = (pathData) => {
     setCurrentTool('select');
     const newEl = { id: uuidv4(), type: 'path', x: 0, y: 0, rotation: 0, data: [pathData], stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent', scaleX: 2.5, scaleY: 2.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
-    saveToHistory([...elements, newEl]); setSelectedId(newEl.id);
+    saveToHistory([...elements, newEl]); 
+    setSelectedId(newEl.id);
+    if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
 
   const addLucideIcon = (iconName) => {
@@ -453,7 +484,9 @@ function App() {
     const paths = getIconPaths(LucideIcons[iconName]);
     if (paths.length === 0) return;
     const newEl = { id: uuidv4(), type: 'icon', x: 0, y: 0, rotation: 0, data: paths, stroke: '#3b82f6', strokeWidth: 1.5, fill: 'transparent', scaleX: 8, scaleY: 8, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
-    saveToHistory([...elements, newEl]); setSelectedId(newEl.id);
+    saveToHistory([...elements, newEl]); 
+    setSelectedId(newEl.id);
+    if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
 
   const updateElement = (id, newAttrs) => { saveToHistory(elements.map(el => el.id === id ? { ...el, ...newAttrs } : el)); };
@@ -565,8 +598,20 @@ function App() {
       id: el.id, x: el.x || 0, y: el.y || 0, rotation: el.rotation || 0, 
       draggable: currentTool === 'select' && !isRulerMode, opacity: el.opacity ?? 1,
       ...shadowProps,
-      onMouseDown: (e) => { e.cancelBubble = true; if(currentTool === 'select' && !isRulerMode) setSelectedId(el.id); }, 
-      onTap: (e) => { e.cancelBubble = true; if(currentTool === 'select' && !isRulerMode) setSelectedId(el.id); },
+      onMouseDown: (e) => { 
+        e.cancelBubble = true; 
+        if(currentTool === 'select' && !isRulerMode) {
+          setSelectedId(el.id);
+          if (isMobile) setIsRightOpen(true); // Tự động mở bảng điều khiển trên mobile
+        }
+      }, 
+      onTap: (e) => { 
+        e.cancelBubble = true; 
+        if(currentTool === 'select' && !isRulerMode) {
+          setSelectedId(el.id);
+          if (isMobile) setIsRightOpen(true);
+        }
+      },
       onDragEnd: (e) => saveToHistory(elements.map(item => item.id === el.id ? { ...item, x: e.target.x(), y: e.target.y() } : item)), 
       onTransformEnd: (e) => handleTransformEnd(e, el),
     };
@@ -615,7 +660,6 @@ function App() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* LỚP PHỦ KHI KÉO THẢ FILE */}
       {isDragging && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(59, 130, 246, 0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', border: '10px dashed white', boxSizing: 'border-box' }}>
           <h2 style={{ color: 'white', fontSize: '32px', textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>Thả file Ảnh hoặc .json vào đây!</h2>
@@ -694,17 +738,18 @@ function App() {
             overflow: 'hidden', 
             transition: 'width 0.3s', 
             background: 'white', 
-            position: isMobile ? 'absolute' : 'relative', 
+            position: 'absolute', 
+            left: 0,
             zIndex: 50,
             height: '100%',
-            borderRight: (!isMobile && isLeftOpen) ? '1px solid #ddd' : 'none',
-            boxShadow: isMobile && isLeftOpen ? '5px 0 15px rgba(0,0,0,0.2)' : 'none'
+            borderRight: isLeftOpen ? '1px solid #ddd' : 'none',
+            boxShadow: isLeftOpen ? '5px 0 15px rgba(0,0,0,0.1)' : 'none'
           }}
         >
           <div style={{ padding: '15px', overflowY: 'auto', height: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <h2 style={{ fontSize: '16px', margin: 0 }}>Thư Viện Hình</h2>
-              {isMobile && <button onClick={() => setIsLeftOpen(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✕</button>}
+              <button onClick={() => setIsLeftOpen(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
             </div>
             
             <ShapeLibrary onAddBasicShape={addBasicShape} onAddIcon={addLucideIcon} onAddPathShape={addPathShape} />
@@ -747,6 +792,7 @@ function App() {
           </div>
         </div>
 
+        {/* NÚT TOGGLE LEFT */}
         {!isMobile && (
           <button 
             onClick={() => setIsLeftOpen(!isLeftOpen)}
@@ -759,7 +805,7 @@ function App() {
         {/* MAIN CANVAS AREA */}
         <div ref={mainAreaRef} className="main-area" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#e5e7eb', touchAction: 'none' }}>
           
-          {isMobile && !isLeftOpen && (
+          {!isLeftOpen && (
             <button onClick={() => setIsLeftOpen(true)} style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>📚</button>
           )}
 
@@ -804,7 +850,7 @@ function App() {
           </Stage>
 
           {/* THANH ZOOM */}
-          <div style={{ position: 'absolute', bottom: '10px', right: '10px', background: 'white', padding: '5px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', display: 'flex', gap: '5px', alignItems: 'center', zIndex: 10 }}>
+          <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'white', padding: '5px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', display: 'flex', gap: '5px', alignItems: 'center', zIndex: 10 }}>
             <button onClick={() => setStageScale(s => Math.max(0.1, s - 0.1))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>-</button>
             <span style={{ fontSize: '12px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{Math.round(stageScale * 100)}%</span>
             <button onClick={() => setStageScale(s => Math.min(5, s + 0.1))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
@@ -812,37 +858,66 @@ function App() {
           </div>
         </div>
 
-        {selectedId && selectedEl && currentTool === 'select' && !isRulerMode && !isMobile && (
+        {/* NÚT TOGGLE RIGHT (MOBILE: FLOATING GEAR / DESKTOP: EDGE TAB) */}
+        {selectedId && selectedEl && currentTool === 'select' && !isRulerMode && (
           <button 
             onClick={() => setIsRightOpen(!isRightOpen)}
-            style={{ position: 'absolute', right: isRightOpen ? '300px' : '0px', top: '50%', transform: 'translateY(-50%)', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRight: 'none', borderRadius: '5px 0 0 5px', padding: '10px 5px', cursor: 'pointer', transition: 'right 0.3s', boxShadow: '-2px 0 5px rgba(0,0,0,0.1)' }}
+            style={{ 
+              position: 'absolute', 
+              right: isMobile ? '20px' : (isRightOpen ? '300px' : '0px'), 
+              bottom: isMobile ? (isRightOpen ? 'calc(60vh + 20px)' : '20px') : 'auto',
+              top: isMobile ? 'auto' : '50%', 
+              transform: isMobile ? 'none' : 'translateY(-50%)', 
+              zIndex: 101, 
+              background: '#fff', 
+              border: '1px solid #ccc', 
+              borderRadius: isMobile ? '50%' : '5px 0 0 5px', 
+              borderRight: isMobile ? '1px solid #ccc' : 'none', 
+              width: isMobile ? '50px' : 'auto', 
+              height: isMobile ? '50px' : 'auto', 
+              padding: isMobile ? '0' : '10px 5px', 
+              cursor: 'pointer', 
+              transition: 'all 0.3s', 
+              boxShadow: '0 4px 10px rgba(0,0,0,0.2)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              fontSize: isMobile ? '24px' : '20px' 
+            }}
           >
-            {isRightOpen ? '▶' : '◀'}
+            {isRightOpen ? (isMobile ? '✕' : '▶') : '⚙️'}
           </button>
         )}
 
-        {/* RIGHT SIDEBAR */}
+        {/* RIGHT SIDEBAR (MOBILE: BOTTOM SHEET / DESKTOP: OVERLAY) */}
         <div 
           style={{ 
-            width: isRightOpen && selectedId ? (isMobile ? '100%' : '300px') : '0px', 
+            position: isMobile ? 'fixed' : 'absolute', 
+            bottom: isMobile ? 0 : 'auto', 
+            right: isMobile ? 0 : 0, 
+            width: isMobile ? '100%' : (isRightOpen && selectedId ? '300px' : '0px'), 
+            height: isMobile ? (isRightOpen && selectedId ? '60vh' : '0px') : '100%', 
             overflow: 'hidden', 
-            transition: 'width 0.3s', 
+            transition: isMobile ? 'height 0.3s' : 'width 0.3s', 
             background: '#f8fafc', 
-            position: isMobile ? 'absolute' : 'relative', 
-            right: 0,
-            zIndex: 50,
-            height: '100%',
-            borderLeft: (!isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none',
-            boxShadow: isMobile && isRightOpen && selectedId ? '-5px 0 15px rgba(0,0,0,0.2)' : 'none'
+            zIndex: 100, 
+            borderLeft: (!isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none', 
+            borderTop: (isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none', 
+            boxShadow: (isRightOpen && selectedId) ? (isMobile ? '0 -5px 15px rgba(0,0,0,0.1)' : '-5px 0 15px rgba(0,0,0,0.1)') : 'none', 
+            borderTopLeftRadius: isMobile ? '15px' : '0', 
+            borderTopRightRadius: isMobile ? '15px' : '0',
           }}
         >
           {selectedId && selectedEl && currentTool === 'select' && !isRulerMode && (
             <div style={{ padding: '15px', overflowY: 'auto', height: '100%' }}>
+              {isMobile && (
+                 <div style={{ width: '40px', height: '5px', background: '#cbd5e1', borderRadius: '5px', margin: '0 auto 15px auto' }} />
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <h2 style={{ fontSize: '18px', margin: 0 }}>Thuộc tính</h2>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button onClick={deleteSelected} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Xoá</button>
-                  {isMobile && <button onClick={() => setIsRightOpen(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✕</button>}
+                  {!isMobile && <button onClick={() => setIsRightOpen(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>}
                 </div>
               </div>
               
