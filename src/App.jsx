@@ -90,6 +90,7 @@ function App() {
   
   const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
+  const [activeTab, setActiveTab] = useState('basic'); // 'basic' | 'effects' | 'colors'
 
   const [mainAreaSize, setMainAreaSize] = useState({ width: 800, height: 600 });
   const mainAreaRef = useRef(null);
@@ -123,6 +124,9 @@ function App() {
   const [brushSize, setBrushSize] = useState(5);
   const isDrawing = useRef(false);
 
+  // State cho việc Zoom 2 ngón tay
+  const lastDist = useRef(0);
+
   const [isRulerMode, setIsRulerMode] = useState(false);
   const startPoint = useRef(null);
   const [tempLine, setTempLine] = useState(null);
@@ -152,34 +156,33 @@ function App() {
     localStorage.setItem('canvas_size', JSON.stringify(canvasSize));
   }, [elements, bgColor, customShapes, canvasSize]);
 
-  // TỰ ĐỘNG CĂN GIỮA (AUTO PAN) - XỬ LÝ CẢ MOBILE BOTTOM SHEET VÀ DESKTOP OVERLAY
+  // TỰ ĐỘNG CĂN GIỮA
   useEffect(() => {
     if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
-      let visibleHeight = mainAreaSize.height;
-      let visibleWidth = mainAreaSize.width;
-
-      if (isMobile) {
-        if (isRightOpen && selectedId) visibleHeight -= (window.innerHeight * 0.6); // Trừ đi 60vh của Bottom Sheet
-      } else {
-        if (isRightOpen && selectedId) visibleWidth -= 300;
-        if (isLeftOpen) visibleWidth -= 250;
-      }
-
-      if (visibleWidth < 100) visibleWidth = 100;
-      if (visibleHeight < 100) visibleHeight = 100;
-
       if (selectedId && layerRef.current) {
         const node = layerRef.current.findOne('#' + selectedId);
         if (node) {
+          let visibleW = mainAreaSize.width;
+          let visibleH = mainAreaSize.height;
+
+          if (isMobile) {
+             if (isRightOpen) visibleH -= (window.innerHeight * 0.4); // Bù trừ 40% Bottom Sheet
+          } else {
+             if (isLeftOpen) visibleW -= 250;
+             if (isRightOpen) visibleW -= 300;
+          }
+          
+          if (visibleW < 100) visibleW = 100;
+          if (visibleH < 100) visibleH = 100;
+
           setStagePos({
-            x: visibleWidth / 2 - node.x() * stageScale,
-            y: visibleHeight / 2 - node.y() * stageScale
+            x: visibleW / 2 - node.x() * stageScale,
+            y: visibleH / 2 - node.y() * stageScale
           });
           return;
         }
       }
       
-      // Nếu không chọn ai, căn giữa Canvas
       setStagePos({
         x: mainAreaSize.width / 2,
         y: mainAreaSize.height / 2
@@ -270,6 +273,55 @@ function App() {
       x: pointerPosition.x - mousePointTo.x * newScale,
       y: pointerPosition.y - mousePointTo.y * newScale,
     });
+  };
+
+  // LOGIC PINCH TO ZOOM (ZOOM 2 NGÓN)
+  const handleTouchMove = (e) => {
+    e.evt.preventDefault();
+    const touch1 = e.evt.touches[0];
+    const touch2 = e.evt.touches[1];
+
+    if (touch1 && touch2) {
+      // Tắt vẽ và kéo khi phát hiện 2 ngón tay
+      isDrawing.current = false;
+      if (stageRef.current.isDragging()) {
+        stageRef.current.stopDrag();
+      }
+      
+      const p1 = { x: touch1.clientX, y: touch1.clientY };
+      const p2 = { x: touch2.clientX, y: touch2.clientY };
+      const newDist = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+      const newCenter = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+      if (lastDist.current === 0) {
+        lastDist.current = newDist;
+        return;
+      }
+
+      const scaleBy = newDist / lastDist.current;
+      const oldScale = stageRef.current.scaleX();
+      let newScale = oldScale * scaleBy;
+      
+      if (newScale < 0.1) newScale = 0.1;
+      if (newScale > 5) newScale = 5;
+
+      const pointerTo = {
+        x: (newCenter.x - stageRef.current.x()) / oldScale,
+        y: (newCenter.y - stageRef.current.y()) / oldScale,
+      };
+
+      setStageScale(newScale);
+      setStagePos({
+        x: newCenter.x - pointerTo.x * newScale,
+        y: newCenter.y - pointerTo.y * newScale,
+      });
+
+      lastDist.current = newDist;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    lastDist.current = 0;
   };
 
   const handleStageMouseDown = (e) => {
@@ -602,7 +654,7 @@ function App() {
         e.cancelBubble = true; 
         if(currentTool === 'select' && !isRulerMode) {
           setSelectedId(el.id);
-          if (isMobile) setIsRightOpen(true); // Tự động mở bảng điều khiển trên mobile
+          if (isMobile) setIsRightOpen(true); 
         }
       }, 
       onTap: (e) => { 
@@ -652,6 +704,148 @@ function App() {
     return null;
   };
 
+  const renderProperties = () => {
+    if (!selectedId || !selectedEl || currentTool !== 'select' || isRulerMode) return null;
+    
+    return (
+      <div style={{ padding: '15px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        {/* TABS */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #ddd', marginBottom: '15px' }}>
+          {['basic', 'effects', 'colors'].map(tab => (
+            <button 
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{ 
+                flex: 1, padding: '8px', background: 'none', border: 'none', cursor: 'pointer',
+                borderBottom: activeTab === tab ? '2px solid #3b82f6' : 'none',
+                color: activeTab === tab ? '#3b82f6' : '#6b7280', fontWeight: 'bold'
+              }}
+            >
+              {tab === 'basic' ? 'Cơ bản' : tab === 'effects' ? 'Hiệu ứng' : 'Màu sắc'}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {activeTab === 'basic' && (
+            <div>
+              <div style={{ display: 'flex', gap: '5px', marginBottom: '15px', flexWrap: 'wrap' }}>
+                <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px', padding: '8px 0' }} onClick={() => moveLayer('up')}>Lên trên</button>
+                <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px', padding: '8px 0' }} onClick={() => moveLayer('down')}>Xuống dưới</button>
+                <button className="btn" style={{ flex: 1, background: '#bfdbfe', fontSize: '12px', fontWeight: 'bold', padding: '8px 0' }} onClick={centerSelected}>Căn Giữa</button>
+                <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px', padding: '8px 0' }} onClick={duplicateSelected}>Nhân bản</button>
+              </div>
+
+              {selectedEl.type === 'text' && (
+                <div style={{ marginBottom: '15px' }}>
+                  <div className="input-group" style={{ marginBottom: '10px' }}>
+                    <label style={{ fontSize: '13px' }}>Nội dung chữ:</label>
+                    <input type="text" value={selectedEl.text} onChange={(e) => updateElement(selectedId, { text: e.target.value })} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }} />
+                  </div>
+                  <div className="input-group" style={{ marginBottom: '10px' }}>
+                    <label style={{ fontSize: '13px' }}>Font chữ:</label>
+                    <select value={selectedEl.fontFamily} onChange={(e) => updateElement(selectedId, { fontFamily: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}>
+                      <option value="Montserrat">Montserrat</option>
+                      <option value="Roboto">Roboto</option>
+                      <option value="Anton">Anton</option>
+                      <option value="Bebas Neue">Bebas Neue</option>
+                      <option value="Dancing Script">Dancing Script</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
+                    <button className="btn" style={{ flex: 1, fontWeight: 'bold', background: selectedEl.fontStyle?.includes('bold') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: selectedEl.fontStyle?.includes('bold') ? 'normal' : 'bold' })}>B</button>
+                    <button className="btn" style={{ flex: 1, fontStyle: 'italic', background: selectedEl.fontStyle?.includes('italic') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: selectedEl.fontStyle?.includes('italic') ? 'normal' : 'italic' })}>I</button>
+                    <button className="btn" style={{ flex: 1, textDecoration: 'underline', background: selectedEl.textDecoration === 'underline' ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { textDecoration: selectedEl.textDecoration === 'underline' ? '' : 'underline' })}>U</button>
+                  </div>
+                </div>
+              )}
+
+              {['rect', 'circle', 'polygon', 'star'].includes(selectedEl.type) && (
+                <div style={{ background: '#e0e7ff', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
+                  <h4 style={{ fontWeight: 'bold', color: '#3730a3', marginBottom: '10px', fontSize: '14px' }}>Tùy chỉnh hình</h4>
+                  {selectedEl.type === 'rect' && (
+                    <><label style={{ fontSize: '13px' }}>Độ bo góc: {selectedEl.cornerRadius || 0}px</label><input type="range" min="0" max="100" value={selectedEl.cornerRadius || 0} onChange={(e) => updateElement(selectedId, { cornerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>
+                  )}
+                  {(selectedEl.type === 'circle' || selectedEl.type === 'polygon') && (
+                    <><label style={{ fontSize: '13px' }}>Bán kính: {Math.round(selectedEl.radius)}px</label><input type="range" min="10" max="300" value={selectedEl.radius || 80} onChange={(e) => updateElement(selectedId, { radius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>
+                  )}
+                  {selectedEl.type === 'polygon' && (
+                    <><label style={{ fontSize: '13px' }}>Số cạnh: {selectedEl.sides}</label><input type="range" min="3" max="20" value={selectedEl.sides || 3} onChange={(e) => updateElement(selectedId, { sides: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>
+                  )}
+                  {selectedEl.type === 'star' && (
+                    <>
+                      <label style={{ fontSize: '13px' }}>Số góc: {selectedEl.numPoints}</label><input type="range" min="3" max="20" value={selectedEl.numPoints || 5} onChange={(e) => updateElement(selectedId, { numPoints: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+                      <label style={{ fontSize: '13px' }}>Độ nhọn:</label><input type="range" min="10" max={selectedEl.outerRadius - 5} value={selectedEl.innerRadius || 40} onChange={(e) => updateElement(selectedId, { innerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+                    </>
+                  )}
+                </div>
+              )}
+
+              {selectedEl.type === 'image' && (
+                <button className="btn" style={{ width: '100%', background: '#8b5cf6', color: 'white', marginTop: '15px', padding: '12px', fontWeight: 'bold' }} onClick={handleRemoveBg} disabled={isProcessing}>
+                  ✨ Tách Nền AI (Poof BG)
+                </button>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'effects' && (
+            <div>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ fontSize: '13px' }}>Độ mờ (Opacity): {Math.round((selectedEl.opacity ?? 1) * 100)}%</label>
+                <input type="range" min="0" max="1" step="0.05" value={selectedEl.opacity ?? 1} onChange={(e) => updateElement(selectedId, { opacity: parseFloat(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '10px' }}>
+                <input type="checkbox" checked={selectedEl.shadowEnabled || false} onChange={(e) => updateElement(selectedId, { shadowEnabled: e.target.checked })} />
+                <label style={{ fontWeight: 'bold', fontSize: '13px' }}>Bật Đổ bóng</label>
+              </div>
+
+              {selectedEl.shadowEnabled && (
+                <div style={{ paddingLeft: '10px', borderLeft: '2px solid #cbd5e1' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}>
+                    <label style={{ fontSize: '12px' }}>Màu bóng:</label>
+                    <input type="color" value={selectedEl.shadowColor || '#000000'} onChange={(e) => updateElement(selectedId, { shadowColor: e.target.value })} style={{ width: '30px', height: '25px' }} />
+                  </div>
+                  <label style={{ fontSize: '12px' }}>Độ mờ bóng: {selectedEl.shadowBlur ?? 10}px</label>
+                  <input type="range" min="0" max="50" value={selectedEl.shadowBlur ?? 10} onChange={(e) => updateElement(selectedId, { shadowBlur: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '5px' }} />
+                  <label style={{ fontSize: '12px' }}>Khoảng cách X: {selectedEl.shadowOffsetX ?? 5}px</label>
+                  <input type="range" min="-20" max="20" value={selectedEl.shadowOffsetX ?? 5} onChange={(e) => updateElement(selectedId, { shadowOffsetX: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '5px' }} />
+                  <label style={{ fontSize: '12px' }}>Khoảng cách Y: {selectedEl.shadowOffsetY ?? 5}px</label>
+                  <input type="range" min="-20" max="20" value={selectedEl.shadowOffsetY ?? 5} onChange={(e) => updateElement(selectedId, { shadowOffsetY: parseInt(e.target.value) })} style={{ width: '100%' }} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'colors' && (
+            <div>
+              {['text', 'rect', 'circle', 'polygon', 'star'].includes(selectedEl.type) && (
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{ fontSize: '13px' }}>Màu nền:</label>
+                  <input type="color" value={selectedEl.fill} onChange={(e) => updateElement(selectedId, { fill: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
+                  
+                  {['rect', 'circle', 'polygon', 'star'].includes(selectedEl.type) && (
+                    <>
+                      <label style={{ fontSize: '13px' }}>Màu viền:</label>
+                      <input type="color" value={selectedEl.stroke || '#000000'} onChange={(e) => updateElement(selectedId, { stroke: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
+                      <label style={{ fontSize: '13px' }}>Độ dày viền: {selectedEl.strokeWidth || 0}px</label>
+                      <input type="range" min="0" max="20" value={selectedEl.strokeWidth || 0} onChange={(e) => updateElement(selectedId, { strokeWidth: parseInt(e.target.value) })} style={{ width: '100%' }} />
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        
+        <button onClick={deleteSelected} style={{ marginTop: '10px', padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+          Xoá vật thể này
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div 
       className="app-container" 
@@ -674,58 +868,58 @@ function App() {
       )}
 
       {/* TOPBAR */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: '#e5e7eb', padding: '10px 20px', borderBottom: '1px solid #d1d5db', gap: '15px' }}>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <h2 style={{ fontSize: '20px', color: '#1f2937', margin: 0, fontWeight: '700' }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: '#e5e7eb', padding: '10px 15px', borderBottom: '1px solid #d1d5db', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: '18px', color: '#1f2937', margin: 0, fontWeight: '700' }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
           
           <select 
             value={`${canvasSize.width}x${canvasSize.height}`} 
             onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); setCanvasSize({ width: w, height: h }); }}
-            style={{ padding: '5px 10px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '13px', fontWeight: 'bold' }}
+            style={{ padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold' }}
           >
-            <option value="800x600">Mặc định (800x600)</option>
-            <option value="1080x1080">Vuông (1080x1080)</option>
-            <option value="1080x1920">Dọc - Story (1080x1920)</option>
-            <option value="1920x1080">Ngang - YouTube (1920x1080)</option>
-            <option value="1200x630">Facebook Post (1200x630)</option>
+            <option value="800x600">800x600</option>
+            <option value="1080x1080">1080x1080</option>
+            <option value="1080x1920">1080x1920 (Story)</option>
+            <option value="1920x1080">1920x1080 (Youtube)</option>
+            <option value="1200x630">1200x630 (FB)</option>
           </select>
 
-          <div style={{ display: 'flex', gap: '5px', borderLeft: '1px solid #ccc', paddingLeft: '15px' }}>
-            <button className={`btn ${currentTool === 'brush' ? 'btn-primary' : ''}`} style={{ border: '1px solid #ccc', background: currentTool === 'brush' ? '#3b82f6' : '#fff', color: currentTool === 'brush' ? '#fff' : '#333', padding: '6px 12px' }} onClick={() => { setCurrentTool('brush'); setIsRulerMode(false); }}>🖌️ Bút</button>
-            <button className={`btn ${isRulerMode ? 'btn-primary' : ''}`} style={{ border: '1px solid #ccc', background: isRulerMode ? '#10b981' : '#fff', color: isRulerMode ? '#fff' : '#333', padding: '6px 12px' }} onClick={() => { setIsRulerMode(true); setCurrentTool('select'); }}>📏 Thước</button>
-            <button className={`btn ${currentTool === 'select' ? 'btn-primary' : ''}`} style={{ border: '1px solid #ccc', background: currentTool === 'select' && !isRulerMode ? '#3b82f6' : '#fff', color: currentTool === 'select' && !isRulerMode ? '#fff' : '#333', padding: '6px 12px' }} onClick={() => { setCurrentTool('select'); setIsRulerMode(false); }}>🖱️ Chọn</button>
+          <div style={{ display: 'flex', gap: '5px', borderLeft: '1px solid #ccc', paddingLeft: '10px' }}>
+            <button className={`btn ${currentTool === 'brush' ? 'btn-primary' : ''}`} style={{ border: '1px solid #ccc', background: currentTool === 'brush' ? '#3b82f6' : '#fff', color: currentTool === 'brush' ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px' }} onClick={() => { setCurrentTool('brush'); setIsRulerMode(false); }}>🖌️ Bút</button>
+            <button className={`btn ${isRulerMode ? 'btn-primary' : ''}`} style={{ border: '1px solid #ccc', background: isRulerMode ? '#10b981' : '#fff', color: isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px' }} onClick={() => { setIsRulerMode(true); setCurrentTool('select'); }}>📏 Thước</button>
+            <button className={`btn ${currentTool === 'select' ? 'btn-primary' : ''}`} style={{ border: '1px solid #ccc', background: currentTool === 'select' && !isRulerMode ? '#3b82f6' : '#fff', color: currentTool === 'select' && !isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px' }} onClick={() => { setCurrentTool('select'); setIsRulerMode(false); }}>🖱️ Chọn</button>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '1px solid #ccc', paddingLeft: '15px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '1px solid #ccc', paddingLeft: '10px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Màu:</label>
-              <input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} style={{ width: '30px', height: '30px', padding: 0, border: 'none' }} />
+              <input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} style={{ width: '25px', height: '25px', padding: 0, border: 'none' }} />
             </div>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', position: 'relative' }}>
               <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px' }}>
                 Độ dày 
-                <span onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)} style={{ color: '#3b82f6', borderRadius: '50%', border: '1px solid #3b82f6', width: '16px', height: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', cursor: 'help' }}>i</span>
+                <span onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)} style={{ color: '#3b82f6', borderRadius: '50%', border: '1px solid #3b82f6', width: '14px', height: '14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', cursor: 'help' }}>i</span>
               </label>
               {showTooltip && (
                 <div style={{ position: 'absolute', top: '25px', left: '-20px', background: '#333', color: 'white', padding: '5px 10px', borderRadius: '5px', fontSize: '12px', whiteSpace: 'nowrap', zIndex: 100, boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>Chỉnh độ dày của bút vẽ và thước kẻ</div>
               )}
-              <input type="range" min="1" max="30" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} style={{ width: '80px' }} />
-              <span style={{ fontSize: '12px', width: '20px' }}>{brushSize}</span>
+              <input type="range" min="1" max="30" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} style={{ width: '60px' }} />
+              <span style={{ fontSize: '12px', width: '15px' }}>{brushSize}</span>
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <button onClick={saveProject} style={{ padding: '6px 12px', fontWeight: 'bold', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', color: '#333' }} title="Lưu file thiết kế (.json)">💾 Lưu Dự Án</button>
-          <button onClick={() => fileInputRef.current.click()} style={{ padding: '6px 12px', fontWeight: 'bold', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', color: '#333' }} title="Mở file thiết kế (.json)">📂 Mở Dự Án</button>
+        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={saveProject} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333' }} title="Lưu file thiết kế (.json)">💾 Lưu Dự Án</button>
+          <button onClick={() => fileInputRef.current.click()} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333' }} title="Mở file thiết kế (.json)">📂 Mở Dự Án</button>
           <input type="file" accept=".json" ref={fileInputRef} onChange={loadProject} style={{ display: 'none' }} />
 
-          <button onClick={handleUndo} disabled={historyStep <= 0} style={{ padding: '6px 12px', fontWeight: 'bold', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', cursor: historyStep <= 0 ? 'not-allowed' : 'pointer' }}>↩</button>
-          <button onClick={handleRedo} disabled={historyStep >= history.length - 1} style={{ padding: '6px 12px', fontWeight: 'bold', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', cursor: historyStep >= history.length - 1 ? 'not-allowed' : 'pointer' }}>↪</button>
-          <button onClick={handleReset} style={{ padding: '6px 12px', fontWeight: 'bold', borderRadius: '6px', border: '1px solid #ef4444', background: '#fee2e2', color: '#ef4444' }}>Xoá hết</button>
+          <button onClick={handleUndo} disabled={historyStep <= 0} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: historyStep <= 0 ? 'not-allowed' : 'pointer' }}>↩</button>
+          <button onClick={handleRedo} disabled={historyStep >= history.length - 1} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: historyStep >= history.length - 1 ? 'not-allowed' : 'pointer' }}>↪</button>
+          <button onClick={handleReset} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ef4444', background: '#fee2e2', color: '#ef4444' }}>Xoá hết</button>
           
-          <button className="btn btn-success" onClick={exportPng} style={{ padding: '6px 15px' }}>Tải Ảnh PNG</button>
+          <button className="btn btn-success" onClick={exportPng} style={{ padding: '5px 12px', fontSize: '12px' }}>Tải Ảnh PNG</button>
         </div>
       </div>
 
@@ -740,7 +934,7 @@ function App() {
             background: 'white', 
             position: 'absolute', 
             left: 0,
-            zIndex: 50,
+            zIndex: 100,
             height: '100%',
             borderRight: isLeftOpen ? '1px solid #ddd' : 'none',
             boxShadow: isLeftOpen ? '5px 0 15px rgba(0,0,0,0.1)' : 'none'
@@ -813,12 +1007,12 @@ function App() {
             width={mainAreaSize.width} 
             height={mainAreaSize.height} 
             onWheel={handleWheel}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             onMouseDown={handleStageMouseDown} 
             onMousemove={handleStageMouseMove} 
             onMouseup={handleStageMouseUp}
             onTouchStart={handleStageMouseDown} 
-            onTouchMove={handleStageMouseMove} 
-            onTouchEnd={handleStageMouseUp}
             scaleX={stageScale}
             scaleY={stageScale}
             x={stagePos.x}
@@ -858,14 +1052,14 @@ function App() {
           </div>
         </div>
 
-        {/* NÚT TOGGLE RIGHT (MOBILE: FLOATING GEAR / DESKTOP: EDGE TAB) */}
+        {/* NÚT TOGGLE RIGHT */}
         {selectedId && selectedEl && currentTool === 'select' && !isRulerMode && (
           <button 
             onClick={() => setIsRightOpen(!isRightOpen)}
             style={{ 
               position: 'absolute', 
               right: isMobile ? '20px' : (isRightOpen ? '300px' : '0px'), 
-              bottom: isMobile ? (isRightOpen ? 'calc(60vh + 20px)' : '20px') : 'auto',
+              bottom: isMobile ? (isRightOpen ? 'calc(40vh + 20px)' : '20px') : 'auto', // Nút nổi lên trên Bottom Sheet
               top: isMobile ? 'auto' : '50%', 
               transform: isMobile ? 'none' : 'translateY(-50%)', 
               zIndex: 101, 
@@ -889,164 +1083,35 @@ function App() {
           </button>
         )}
 
-        {/* RIGHT SIDEBAR (MOBILE: BOTTOM SHEET / DESKTOP: OVERLAY) */}
+        {/* RIGHT SIDEBAR (MOBILE: BOTTOM SHEET 40% / DESKTOP: OVERLAY) */}
         <div 
           style={{ 
             position: isMobile ? 'fixed' : 'absolute', 
-            bottom: isMobile ? 0 : 'auto', 
+            bottom: 0, 
             right: isMobile ? 0 : 0, 
             width: isMobile ? '100%' : (isRightOpen && selectedId ? '300px' : '0px'), 
-            height: isMobile ? (isRightOpen && selectedId ? '60vh' : '0px') : '100%', 
-            overflow: 'hidden', 
-            transition: isMobile ? 'height 0.3s' : 'width 0.3s', 
-            background: '#f8fafc', 
-            zIndex: 100, 
+            height: isMobile ? '40vh' : '100%', // Giảm xuống 40vh cho mobile
+            backgroundColor: '#f8fafc', 
+            zIndex: 999, 
+            transform: (isRightOpen && selectedId) ? 'translateY(0)' : (isMobile ? 'translateY(100%)' : 'translateX(100%)'),
+            transition: 'transform 0.3s ease-in-out',
+            borderTopLeftRadius: isMobile ? '15px' : '0', 
+            borderTopRightRadius: isMobile ? '15px' : '0',
             borderLeft: (!isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none', 
             borderTop: (isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none', 
             boxShadow: (isRightOpen && selectedId) ? (isMobile ? '0 -5px 15px rgba(0,0,0,0.1)' : '-5px 0 15px rgba(0,0,0,0.1)') : 'none', 
-            borderTopLeftRadius: isMobile ? '15px' : '0', 
-            borderTopRightRadius: isMobile ? '15px' : '0',
+            display: 'flex', flexDirection: 'column',
+            // Chặn click ra ngoài làm mất bảng
+            onMouseDown: (e) => e.stopPropagation(),
+            onTouchStart: (e) => e.stopPropagation()
           }}
         >
-          {selectedId && selectedEl && currentTool === 'select' && !isRulerMode && (
-            <div style={{ padding: '15px', overflowY: 'auto', height: '100%' }}>
-              {isMobile && (
-                 <div style={{ width: '40px', height: '5px', background: '#cbd5e1', borderRadius: '5px', margin: '0 auto 15px auto' }} />
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                <h2 style={{ fontSize: '18px', margin: 0 }}>Thuộc tính</h2>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={deleteSelected} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Xoá</button>
-                  {!isMobile && <button onClick={() => setIsRightOpen(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>}
-                </div>
-              </div>
-              
-              <div style={{ display: 'flex', gap: '5px', marginBottom: '15px', flexWrap: 'wrap' }}>
-                <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px' }} onClick={() => moveLayer('up')}>Lên trên</button>
-                <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px' }} onClick={() => moveLayer('down')}>Xuống dưới</button>
-                <button className="btn" style={{ flex: 1, background: '#bfdbfe', fontSize: '12px', fontWeight: 'bold' }} onClick={centerSelected}>Căn Giữa</button>
-                <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px' }} onClick={duplicateSelected}>Nhân bản</button>
-              </div>
-
-              <div style={{ background: '#f3f4f6', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
-                <h4 style={{ marginBottom: '10px', color: '#374151' }}>Hiệu ứng</h4>
-                <label>Độ mờ (Opacity): {Math.round((selectedEl.opacity ?? 1) * 100)}%</label>
-                <input type="range" min="0" max="1" step="0.05" value={selectedEl.opacity ?? 1} onChange={(e) => updateElement(selectedId, { opacity: parseFloat(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '10px' }}>
-                  <input type="checkbox" checked={selectedEl.shadowEnabled || false} onChange={(e) => updateElement(selectedId, { shadowEnabled: e.target.checked })} />
-                  <label style={{ fontWeight: 'bold' }}>Bật Đổ bóng</label>
-                </div>
-
-                {selectedEl.shadowEnabled && (
-                  <div style={{ paddingLeft: '10px', borderLeft: '2px solid #cbd5e1' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}>
-                      <label>Màu bóng:</label>
-                      <input type="color" value={selectedEl.shadowColor || '#000000'} onChange={(e) => updateElement(selectedId, { shadowColor: e.target.value })} />
-                    </div>
-                    <label>Độ mờ bóng: {selectedEl.shadowBlur ?? 10}px</label>
-                    <input type="range" min="0" max="50" value={selectedEl.shadowBlur ?? 10} onChange={(e) => updateElement(selectedId, { shadowBlur: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '5px' }} />
-                    <label>Khoảng cách X: {selectedEl.shadowOffsetX ?? 5}px</label>
-                    <input type="range" min="-20" max="20" value={selectedEl.shadowOffsetX ?? 5} onChange={(e) => updateElement(selectedId, { shadowOffsetX: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '5px' }} />
-                    <label>Khoảng cách Y: {selectedEl.shadowOffsetY ?? 5}px</label>
-                    <input type="range" min="-20" max="20" value={selectedEl.shadowOffsetY ?? 5} onChange={(e) => updateElement(selectedId, { shadowOffsetY: parseInt(e.target.value) })} style={{ width: '100%' }} />
-                  </div>
-                )}
-              </div>
-
-              {selectedEl.type === 'text' && (
-                <div style={{ background: '#f3f4f6', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
-                  <h4 style={{ marginBottom: '10px', color: '#374151' }}>Định dạng chữ</h4>
-                  <select value={selectedEl.fontFamily} onChange={(e) => updateElement(selectedId, { fontFamily: e.target.value })} style={{ width: '100%', padding: '5px', marginBottom: '10px' }}>
-                    <option value="Montserrat">Montserrat (Hiện đại)</option>
-                    <option value="Roboto">Roboto (Cơ bản)</option>
-                    <option value="Anton">Anton (Cực đậm)</option>
-                    <option value="Bebas Neue">Bebas Neue (Chất ngầu)</option>
-                    <option value="Playfair Display">Playfair (Sang trọng)</option>
-                    <option value="Dancing Script">Dancing Script (Viết tay)</option>
-                    <option value="Nunito">Nunito (Dễ thương)</option>
-                    <option value="Pacifico">Pacifico (Nghệ thuật)</option>
-                    <option value="Oswald">Oswald (Tiêu đề)</option>
-                    <option value="Arial">Arial</option>
-                    <option value="Times New Roman">Times New Roman</option>
-                  </select>
-                  
-                  <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
-                    <button className="btn" style={{ flex: 1, fontWeight: 'bold', background: selectedEl.fontStyle?.includes('bold') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: selectedEl.fontStyle?.includes('bold') ? 'normal' : 'bold' })}>B</button>
-                    <button className="btn" style={{ flex: 1, fontStyle: 'italic', background: selectedEl.fontStyle?.includes('italic') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: selectedEl.fontStyle?.includes('italic') ? 'normal' : 'italic' })}>I</button>
-                    <button className="btn" style={{ flex: 1, textDecoration: 'underline', background: selectedEl.textDecoration === 'underline' ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { textDecoration: selectedEl.textDecoration === 'underline' ? '' : 'underline' })}>U</button>
-                  </div>
-
-                  <div className="input-group" style={{ marginBottom: '10px' }}>
-                    <label>Nội dung:</label>
-                    <input type="text" value={selectedEl.text} onChange={(e) => updateElement(selectedId, { text: e.target.value })} />
-                  </div>
-                  
-                  <div style={{ display: 'flex', gap: '5px' }}>
-                    <button className="btn" style={{ flex: 1, background: selectedEl.align === 'left' ? '#bfdbfe' : '#e5e7eb' }} onClick={() => updateElement(selectedId, { align: 'left' })}>Trái</button>
-                    <button className="btn" style={{ flex: 1, background: selectedEl.align === 'center' ? '#bfdbfe' : '#e5e7eb' }} onClick={() => updateElement(selectedId, { align: 'center' })}>Giữa</button>
-                    <button className="btn" style={{ flex: 1, background: selectedEl.align === 'right' ? '#bfdbfe' : '#e5e7eb' }} onClick={() => updateElement(selectedId, { align: 'right' })}>Phải</button>
-                  </div>
-
-                  <div style={{ marginTop: '15px', borderTop: '1px solid #ddd', paddingTop: '10px' }}>
-                    <label style={{ fontWeight: 'bold' }}>Viền chữ (Stroke):</label>
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: '12px' }}>Màu:</label>
-                        <input type="color" value={selectedEl.stroke || '#000000'} onChange={(e) => updateElement(selectedId, { stroke: e.target.value })} style={{ width: '100%', height: '25px' }} />
-                      </div>
-                      <div style={{ flex: 2 }}>
-                        <label style={{ fontSize: '12px' }}>Độ dày: {selectedEl.strokeWidth || 0}px</label>
-                        <input type="range" min="0" max="10" step="0.5" value={selectedEl.strokeWidth || 0} onChange={(e) => updateElement(selectedId, { strokeWidth: parseFloat(e.target.value) })} style={{ width: '100%' }} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {['rect', 'circle', 'polygon', 'star'].includes(selectedEl.type) && (
-                <div className="input-group" style={{ marginBottom: '15px', background: '#e0e7ff', padding: '10px', borderRadius: '6px' }}>
-                  <h4 style={{ fontWeight: 'bold', color: '#3730a3', marginBottom: '10px' }}>Tùy chỉnh hình</h4>
-                  {selectedEl.type === 'rect' && (
-                    <><label>Độ bo góc: {selectedEl.cornerRadius || 0}px</label><input type="range" min="0" max="100" value={selectedEl.cornerRadius || 0} onChange={(e) => updateElement(selectedId, { cornerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>
-                  )}
-                  {(selectedEl.type === 'circle' || selectedEl.type === 'polygon') && (
-                    <><label>Bán kính: {Math.round(selectedEl.radius)}px</label><input type="range" min="10" max="300" value={selectedEl.radius || 80} onChange={(e) => updateElement(selectedId, { radius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>
-                  )}
-                  {selectedEl.type === 'polygon' && (
-                    <><label>Số cạnh: {selectedEl.sides}</label><input type="range" min="3" max="20" value={selectedEl.sides || 3} onChange={(e) => updateElement(selectedId, { sides: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>
-                  )}
-                  {selectedEl.type === 'star' && (
-                    <>
-                      <label>Số góc: {selectedEl.numPoints}</label><input type="range" min="3" max="20" value={selectedEl.numPoints || 5} onChange={(e) => updateElement(selectedId, { numPoints: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
-                      <label>Độ nhọn:</label><input type="range" min="10" max={selectedEl.outerRadius - 5} value={selectedEl.innerRadius || 40} onChange={(e) => updateElement(selectedId, { innerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
-                    </>
-                  )}
-                </div>
-              )}
-
-              {['text', 'rect', 'circle', 'polygon', 'star', 'brush'].includes(selectedEl.type) && (
-                <div className="input-group" style={{ marginTop: '10px', background: '#f3f4f6', padding: '10px', borderRadius: '6px' }}>
-                  <label>Màu nền:</label>
-                  <input type="color" value={selectedEl.type === 'brush' ? selectedEl.stroke : selectedEl.fill} onChange={(e) => updateElement(selectedId, selectedEl.type === 'brush' ? { stroke: e.target.value } : { fill: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
-                  {['rect', 'circle', 'polygon', 'star'].includes(selectedEl.type) && (
-                    <>
-                      <label>Màu viền:</label>
-                      <input type="color" value={selectedEl.stroke || '#000000'} onChange={(e) => updateElement(selectedId, { stroke: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
-                      <label>Độ dày viền: {selectedEl.strokeWidth || 0}px</label>
-                      <input type="range" min="0" max="20" value={selectedEl.strokeWidth || 0} onChange={(e) => updateElement(selectedId, { strokeWidth: parseInt(e.target.value) })} style={{ width: '100%' }} />
-                    </>
-                  )}
-                </div>
-              )}
-
-              {selectedEl.type === 'image' && (
-                <button className="btn" style={{ width: '100%', background: '#8b5cf6', color: 'white', marginTop: '15px', padding: '12px', fontWeight: 'bold' }} onClick={handleRemoveBg} disabled={isProcessing}>
-                  ✨ Tách Nền AI (Poof BG)
-                </button>
-              )}
-            </div>
+          {isMobile && (
+             <div style={{ width: '100%', height: '25px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+               <div style={{ width: '40px', height: '5px', background: '#cbd5e1', borderRadius: '5px' }} />
+             </div>
           )}
+          {renderProperties()}
         </div>
 
       </div>
