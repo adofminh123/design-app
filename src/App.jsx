@@ -95,8 +95,8 @@ function App() {
   const [mainAreaSize, setMainAreaSize] = useState({ width: 800, height: 600 });
   const mainAreaRef = useRef(null);
   
-  // Dùng ref để kiểm soát logic auto-pan
   const prevSelectedId = useRef(null);
+  const isCanvasDragging = useRef(false); // Cờ phân biệt Kéo và Click
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 1024);
@@ -158,11 +158,10 @@ function App() {
     localStorage.setItem('canvas_size', JSON.stringify(canvasSize));
   }, [elements, bgColor, customShapes, canvasSize]);
 
-  // AUTO PAN: Chỉ chạy khi chọn MỘT VẬT THỂ MỚI (tránh bị giật khi kéo)
+  // TỰ ĐỘNG CĂN GIỮA (CHỈ CHẠY KHI CHỌN VẬT THỂ MỚI)
   useEffect(() => {
     if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
       if (selectedId) {
-        // Nếu đây là vật thể đã chọn từ trước đó, KHÔNG pan nữa
         if (prevSelectedId.current === selectedId) return;
         prevSelectedId.current = selectedId;
 
@@ -172,8 +171,9 @@ function App() {
             let visibleW = mainAreaSize.width;
             let visibleH = mainAreaSize.height;
 
+            // Trên mobile, chừa 40% chỗ cho Bottom Sheet để căn giữa phần trên
             if (isMobile) {
-               if (isRightOpen) visibleH -= (window.innerHeight * 0.4); 
+               visibleH = mainAreaSize.height * 0.6;
             } else {
                if (isLeftOpen) visibleW -= 250;
                if (isRightOpen) visibleW -= 300;
@@ -191,14 +191,13 @@ function App() {
         }
       } else {
         prevSelectedId.current = null;
-        // Nếu không chọn ai, căn giữa Canvas
         setStagePos({
           x: mainAreaSize.width / 2,
           y: mainAreaSize.height / 2
         });
       }
     }
-  }, [selectedId, mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height, isRightOpen, isLeftOpen, isMobile]);
+  }, [selectedId, mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height]);
 
   useEffect(() => {
     if (selectedId && currentTool === 'select' && !isRulerMode) {
@@ -341,10 +340,8 @@ function App() {
       return;
     }
     if (currentTool !== 'brush') {
-      // Chỉ bỏ chọn nếu click chuột phải vào vùng trống (target === stage)
-      if (e.target === e.target.getStage()) {
-        setSelectedId(null); 
-      }
+      // BỎ HOÀN TOÀN VIỆC CLICK VÀO ĐÂY ĐỂ BỎ CHỌN
+      // Chỉ bỏ chọn khi có sự kiện onClick (không bị kéo)
       return;
     }
     isDrawing.current = true;
@@ -692,7 +689,7 @@ function App() {
     const finalProps = {
       ...commonProps,
       stroke: el.stroke, strokeWidth: el.strokeWidth,
-      fill: el.fill, // Đảm bảo fill được truyền đúng
+      fill: el.fill,
       ...(el.type === 'text' && { text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily || 'Montserrat', fontStyle: el.fontStyle || 'normal', textDecoration: el.textDecoration || '', align: el.align }),
       ...(el.type === 'rect' && { width: el.width, height: el.height, cornerRadius: el.cornerRadius || 0, scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
       ...(el.type === 'circle' && { radius: el.radius }),
@@ -721,6 +718,11 @@ function App() {
     
     return (
       <div style={{ padding: '15px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <h2 style={{ fontSize: '16px', margin: 0 }}>Thuộc tính</h2>
+          <button onClick={() => setIsRightOpen(false)} style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '18px', padding: '0 5px' }}>✕</button>
+        </div>
+
         <div style={{ display: 'flex', borderBottom: '1px solid #ddd', marginBottom: '15px' }}>
           {['basic', 'effects', 'colors'].map(tab => (
             <button 
@@ -1023,16 +1025,31 @@ function App() {
             onMousemove={handleStageMouseMove} 
             onMouseup={handleStageMouseUp}
             onTouchStart={handleStageMouseDown} 
+            onClick={(e) => {
+              // CHỈ BỎ CHỌN NẾU LÀ CLICK CHUỘT VÀO VÙNG TRỐNG (KHÔNG PHẢI KÉO)
+              if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current) {
+                setSelectedId(null);
+              }
+            }}
+            onTap={(e) => {
+              if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current) {
+                setSelectedId(null);
+              }
+            }}
+            onDragStart={(e) => {
+              if (e.target === e.target.getStage()) isCanvasDragging.current = true;
+            }}
+            onDragEnd={(e) => {
+              if (e.target === e.target.getStage()) {
+                setStagePos({ x: e.target.x(), y: e.target.y() });
+                setTimeout(() => { isCanvasDragging.current = false; }, 50); // Trễ 50ms để không kích hoạt onClick
+              }
+            }}
             scaleX={stageScale}
             scaleY={stageScale}
             x={stagePos.x}
             y={stagePos.y}
             draggable={currentTool === 'select' && !isRulerMode} 
-            onDragEnd={(e) => {
-              if (e.target === e.target.getStage()) {
-                setStagePos({ x: e.target.x(), y: e.target.y() });
-              }
-            }}
             ref={stageRef} 
             style={{ cursor: (currentTool === 'brush' || isRulerMode) ? 'crosshair' : 'grab' }}
           >
@@ -1102,7 +1119,7 @@ function App() {
             width: isMobile ? '100%' : (isRightOpen && selectedId ? '300px' : '0px'), 
             height: isMobile ? '40vh' : '100%', 
             backgroundColor: '#f8fafc', 
-            zIndex: 9999, // Z-INDEX CAO NHẤT ĐỂ ĐÈ LÊN TRÊN CANVAS
+            zIndex: 9999, 
             transform: (isRightOpen && selectedId) ? 'translateY(0)' : (isMobile ? 'translateY(100%)' : 'translateX(100%)'),
             transition: 'transform 0.3s ease-in-out',
             borderTopLeftRadius: isMobile ? '15px' : '0', 
@@ -1111,7 +1128,6 @@ function App() {
             borderTop: (isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none', 
             boxShadow: (isRightOpen && selectedId) ? (isMobile ? '0 -5px 15px rgba(0,0,0,0.1)' : '-5px 0 15px rgba(0,0,0,0.1)') : 'none', 
             display: 'flex', flexDirection: 'column',
-            // CHẶN SỰ KIỆN LAN RA NGOÀI KHI CLICK VÀO BẢNG ĐIỀU KHIỂN
             onMouseDown: (e) => e.stopPropagation(),
             onTouchStart: (e) => e.stopPropagation(),
             onClick: (e) => e.stopPropagation()
