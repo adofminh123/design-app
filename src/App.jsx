@@ -88,15 +88,31 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingText, setProcessingText] = useState('');
   
-  // STATE KÉO THẢ FILE
   const [isDragging, setIsDragging] = useState(false);
-
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
+
+  // STATE ĐO KÍCH THƯỚC KHU VỰC LÀM VIỆC
+  const [mainAreaSize, setMainAreaSize] = useState({ width: 800, height: 600 });
+  const mainAreaRef = useRef(null);
   
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!mainAreaRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        setMainAreaSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height
+        });
+      }
+    });
+    observer.observe(mainAreaRef.current);
+    return () => observer.disconnect();
   }, []);
 
   const [isLeftOpen, setIsLeftOpen] = useState(!isMobile);
@@ -136,6 +152,16 @@ function App() {
     localStorage.setItem('custom_shapes', JSON.stringify(customShapes));
     localStorage.setItem('canvas_size', JSON.stringify(canvasSize));
   }, [elements, bgColor, customShapes, canvasSize]);
+
+  // TỰ ĐỘNG CĂN GIỮA CANVAS KHI ĐỔI KÍCH THƯỚC HOẶC THAY ĐỔI KHU VỰC LÀM VIỆC
+  useEffect(() => {
+    if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
+      setStagePos({
+        x: mainAreaSize.width / 2,
+        y: mainAreaSize.height / 2
+      });
+    }
+  }, [mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height]);
 
   useEffect(() => {
     if (selectedId && currentTool === 'select' && !isRulerMode) {
@@ -193,6 +219,8 @@ function App() {
   const handleReset = () => {
     if (window.confirm("Bạn có chắc chắn muốn ĐẶT LẠI TỪ ĐẦU?")) {
       setElements([]); setBgColor('#ffffff'); setSelectedId(null); setCurrentTool('select'); setHistory([[]]); setHistoryStep(0);
+      setStageScale(1);
+      setStagePos({ x: mainAreaSize.width / 2, y: mainAreaSize.height / 2 });
     }
   };
 
@@ -223,7 +251,10 @@ function App() {
   const handleStageMouseDown = (e) => {
     if (isRulerMode) {
       startPoint.current = e.target.getStage().getPointerPosition();
-      setTempLine({ x: startPoint.current.x, y: startPoint.current.y, points: [0, 0, 0, 0] });
+      // Cần chuyển đổi tọa độ chuột thành tọa độ của Canvas
+      const transform = e.target.getAbsoluteTransform().copy().invert();
+      const pos = transform.point(startPoint.current);
+      setTempLine({ x: pos.x, y: pos.y, points: [0, 0, 0, 0] });
       return;
     }
     if (currentTool !== 'brush') {
@@ -231,7 +262,10 @@ function App() {
       return;
     }
     isDrawing.current = true;
-    const pos = e.target.getStage().getPointerPosition();
+    const stage = e.target.getStage();
+    const transform = stage.getAbsoluteTransform().copy().invert();
+    const pos = transform.point(stage.getPointerPosition());
+    
     const newLine = { 
       id: uuidv4(), type: 'brush', points: [pos.x, pos.y], stroke: brushColor, strokeWidth: brushSize, tension: 0.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' 
     };
@@ -240,12 +274,18 @@ function App() {
 
   const handleStageMouseMove = (e) => {
     if (isRulerMode && startPoint.current) {
-      const pos = e.target.getStage().getPointerPosition();
+      const stage = e.target.getStage();
+      const transform = stage.getAbsoluteTransform().copy().invert();
+      const pos = transform.point(stage.getPointerPosition());
+      // Tính toán vị trí tương đối so với điểm bắt đầu
       setTempLine(prev => ({ ...prev, points: [0, 0, pos.x - prev.x, pos.y - prev.y] }));
       return;
     }
     if (!isDrawing.current || currentTool !== 'brush') return;
-    const point = e.target.getStage().getPointerPosition();
+    const stage = e.target.getStage();
+    const transform = stage.getAbsoluteTransform().copy().invert();
+    const point = transform.point(stage.getPointerPosition());
+    
     let lastLine = elements[elements.length - 1];
     if (lastLine && lastLine.type === 'brush') {
       lastLine.points = lastLine.points.concat([point.x, point.y]);
@@ -266,7 +306,6 @@ function App() {
     if (isDrawing.current) { isDrawing.current = false; saveToHistory(elements); }
   };
 
-  // XỬ LÝ KÉO THẢ FILE (DRAG & DROP)
   const handleDragOver = (e) => {
     e.preventDefault();
     setIsDragging(true);
@@ -284,7 +323,6 @@ function App() {
     if (!file) return;
 
     if (file.type === 'application/json' || file.name.endsWith('.json')) {
-      // Nếu là file JSON -> Load dự án
       const reader = new FileReader();
       reader.onload = (event) => {
         try {
@@ -300,7 +338,6 @@ function App() {
       };
       reader.readAsText(file);
     } else if (file.type.startsWith('image/')) {
-      // Nếu là file Ảnh -> Upload lên Canvas
       const reader = new FileReader();
       reader.onload = () => {
         const newEl = { id: uuidv4(), type: 'image', x: 100, y: 100, width: 250, height: 250, src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
@@ -361,18 +398,19 @@ function App() {
     } catch (error) { alert("Lỗi: " + error.message); setIsProcessing(false); }
   };
 
+  // THUẬT TOÁN CĂN GIỮA VẬT THỂ (Đã sửa lỗi tính toán tọa độ tuyệt đối)
   const centerSelected = () => {
     const node = layerRef.current.findOne('#' + selectedId);
     if (!node) return;
     const box = node.getClientRect({ relativeTo: layerRef.current });
-    const dx = (canvasSize.width - box.width) / 2 - box.x;
-    const dy = (canvasSize.height - box.height) / 2 - box.y;
+    const dx = -box.width / 2 - box.x;
+    const dy = -box.height / 2 - box.y;
     updateElement(selectedId, { x: node.x() + dx, y: node.y() + dy });
   };
 
   const addBasicShape = (type) => {
     setCurrentTool('select');
-    const base = { id: uuidv4(), x: canvasSize.width / 2 - 50, y: canvasSize.height / 2 - 50, rotation: 0, scaleX: 1, scaleY: 1, stroke: '#000000', strokeWidth: 0, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+    const base = { id: uuidv4(), x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1, stroke: '#000000', strokeWidth: 0, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     let newEl = {};
     if (type === 'text') newEl = { ...base, type, text: 'Văn bản mới', fontSize: 40, fontFamily: 'Montserrat', fontStyle: 'normal', fill: '#000000', width: 200, align: 'center' };
     if (type === 'rect') newEl = { ...base, type, width: 200, height: 150, cornerRadius: 0, fill: '#3b82f6' };
@@ -386,7 +424,7 @@ function App() {
 
   const addCustomShape = (shapeTemplate) => {
     setCurrentTool('select');
-    const newEl = { ...shapeTemplate, id: uuidv4(), x: canvasSize.width / 2 - 50, y: canvasSize.height / 2 - 50, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+    const newEl = { ...shapeTemplate, id: uuidv4(), x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]); setSelectedId(newEl.id);
   };
 
@@ -406,7 +444,7 @@ function App() {
 
   const addPathShape = (pathData) => {
     setCurrentTool('select');
-    const newEl = { id: uuidv4(), type: 'path', x: canvasSize.width / 2 - 50, y: canvasSize.height / 2 - 50, rotation: 0, data: [pathData], stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent', scaleX: 2.5, scaleY: 2.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+    const newEl = { id: uuidv4(), type: 'path', x: 0, y: 0, rotation: 0, data: [pathData], stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent', scaleX: 2.5, scaleY: 2.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]); setSelectedId(newEl.id);
   };
 
@@ -414,7 +452,7 @@ function App() {
     setCurrentTool('select');
     const paths = getIconPaths(LucideIcons[iconName]);
     if (paths.length === 0) return;
-    const newEl = { id: uuidv4(), type: 'icon', x: canvasSize.width / 2 - 50, y: canvasSize.height / 2 - 50, rotation: 0, data: paths, stroke: '#3b82f6', strokeWidth: 1.5, fill: 'transparent', scaleX: 8, scaleY: 8, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+    const newEl = { id: uuidv4(), type: 'icon', x: 0, y: 0, rotation: 0, data: paths, stroke: '#3b82f6', strokeWidth: 1.5, fill: 'transparent', scaleX: 8, scaleY: 8, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]); setSelectedId(newEl.id);
   };
 
@@ -577,7 +615,7 @@ function App() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* LỚP PHỦ KHI ĐANG KÉO THẢ FILE VÀO */}
+      {/* LỚP PHỦ KHI KÉO THẢ FILE */}
       {isDragging && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(59, 130, 246, 0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', border: '10px dashed white', boxSizing: 'border-box' }}>
           <h2 style={{ color: 'white', fontSize: '32px', textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>Thả file Ảnh hoặc .json vào đây!</h2>
@@ -591,8 +629,8 @@ function App() {
         </div>
       )}
 
+      {/* TOPBAR */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: '#e5e7eb', padding: '10px 20px', borderBottom: '1px solid #d1d5db', gap: '15px' }}>
-        
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
           <h2 style={{ fontSize: '20px', color: '#1f2937', margin: 0, fontWeight: '700' }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
           
@@ -649,6 +687,7 @@ function App() {
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
         
+        {/* LEFT SIDEBAR */}
         <div 
           style={{ 
             width: isLeftOpen ? (isMobile ? '100%' : '250px') : '0px', 
@@ -717,15 +756,16 @@ function App() {
           </button>
         )}
 
-        <div className="main-area" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#e5e7eb', overflow: 'hidden', position: 'relative', touchAction: 'none' }}>
+        {/* MAIN CANVAS AREA */}
+        <div ref={mainAreaRef} className="main-area" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#e5e7eb', touchAction: 'none' }}>
           
           {isMobile && !isLeftOpen && (
             <button onClick={() => setIsLeftOpen(true)} style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>📚</button>
           )}
 
           <Stage 
-            width={window.innerWidth} 
-            height={window.innerHeight - (isMobile ? 110 : 60)} 
+            width={mainAreaSize.width} 
+            height={mainAreaSize.height} 
             onWheel={handleWheel}
             onMouseDown={handleStageMouseDown} 
             onMousemove={handleStageMouseMove} 
@@ -738,15 +778,21 @@ function App() {
             x={stagePos.x}
             y={stagePos.y}
             draggable={currentTool === 'select' && !isRulerMode} 
+            onDragEnd={(e) => {
+              if (e.target === e.target.getStage()) {
+                setStagePos({ x: e.target.x(), y: e.target.y() });
+              }
+            }}
             ref={stageRef} 
             style={{ cursor: (currentTool === 'brush' || isRulerMode) ? 'crosshair' : 'grab' }}
           >
             <Layer ref={layerRef}>
-              <Rect x={isMobile ? (window.innerWidth - canvasSize.width * stageScale) / 2 : 0} y={isMobile ? 50 : 0} width={canvasSize.width} height={canvasSize.height} fill={bgColor} shadowColor="#000" shadowBlur={20} shadowOpacity={0.2} listening={false} />
-              
-              <Group x={isMobile ? (window.innerWidth - canvasSize.width * stageScale) / 2 : 0} y={isMobile ? 50 : 0}>
+              <Group x={-canvasSize.width / 2} y={-canvasSize.height / 2}>
+                <Rect width={canvasSize.width} height={canvasSize.height} fill={bgColor} shadowColor="#000" shadowBlur={20} shadowOpacity={0.2} listening={false} />
+                
                 {elements.map(renderShape)}
                 {isRulerMode && tempLine && <Line x={tempLine.x} y={tempLine.y} points={tempLine.points} stroke={brushColor} strokeWidth={brushSize} dash={[10, 5]} />}
+                
                 <Transformer 
                   ref={trRef} 
                   keepRatio={['circle', 'star', 'text', 'path', 'icon', 'polygon'].includes(selectedEl?.type)}
@@ -757,11 +803,12 @@ function App() {
             </Layer>
           </Stage>
 
+          {/* THANH ZOOM */}
           <div style={{ position: 'absolute', bottom: '10px', right: '10px', background: 'white', padding: '5px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', display: 'flex', gap: '5px', alignItems: 'center', zIndex: 10 }}>
             <button onClick={() => setStageScale(s => Math.max(0.1, s - 0.1))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>-</button>
             <span style={{ fontSize: '12px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{Math.round(stageScale * 100)}%</span>
             <button onClick={() => setStageScale(s => Math.min(5, s + 0.1))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
-            <button onClick={() => { setStageScale(1); setStagePos({x: 0, y: 0}); }} style={{ background: '#e5e7eb', border: 'none', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Reset</button>
+            <button onClick={() => { setStageScale(1); setStagePos({x: mainAreaSize.width / 2, y: mainAreaSize.height / 2}); }} style={{ background: '#e5e7eb', border: 'none', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Reset</button>
           </div>
         </div>
 
@@ -774,6 +821,7 @@ function App() {
           </button>
         )}
 
+        {/* RIGHT SIDEBAR */}
         <div 
           style={{ 
             width: isRightOpen && selectedId ? (isMobile ? '100%' : '300px') : '0px', 
