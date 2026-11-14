@@ -7,7 +7,7 @@ import * as LucideIcons from 'lucide-react';
 import ShapeLibrary from './components/ShapeLibrary';
 import './App.css';
 
-// MẸO BẢO MẬT API KEY: Chia nhỏ chuỗi để các con bot quét mã tự động không nhận diện được
+// MẸO BẢO MẬT API KEY (Chia nhỏ để bot không quét được)
 const K1_P1 = 'pk_f03da1265a86e47c1113d8';
 const K1_P2 = '753f8d5291';
 const K2_P1 = 'pk_bcb6518335e63ac9ef2b1f';
@@ -101,9 +101,8 @@ function App() {
   const [mainAreaSize, setMainAreaSize] = useState({ width: 800, height: 600 });
   const mainAreaRef = useRef(null);
   
-  // Dùng ref để kiểm soát logic auto-pan và phân biệt click/kéo
   const prevSelectedId = useRef(null);
-  const isCanvasDragging = useRef(false);
+  const isCanvasDragging = useRef(false); // Phân biệt click và kéo
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 1024);
@@ -165,11 +164,11 @@ function App() {
     localStorage.setItem('canvas_size', JSON.stringify(canvasSize));
   }, [elements, bgColor, customShapes, canvasSize]);
 
-  // TỰ ĐỘNG CĂN GIỮA: Chỉ chạy khi chọn MỘT VẬT THỂ MỚI (tránh bị giật khi kéo)
+  // TỰ ĐỘNG CĂN GIỮA: Chỉ chạy khi chọn MỘT VẬT THỂ MỚI
   useEffect(() => {
     if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
       if (selectedId) {
-        if (prevSelectedId.current === selectedId) return; // Nếu đang kéo vật thể cũ, không pan
+        if (prevSelectedId.current === selectedId) return;
         prevSelectedId.current = selectedId;
 
         if (layerRef.current) {
@@ -290,7 +289,6 @@ function App() {
     });
   };
 
-  // LOGIC PINCH TO ZOOM (ZOOM 2 NGÓN)
   const handleTouchMove = (e) => {
     e.evt.preventDefault();
     const touch1 = e.evt.touches[0];
@@ -661,7 +659,9 @@ function App() {
 
     const commonProps = { 
       id: el.id, x: el.x || 0, y: el.y || 0, rotation: el.rotation || 0, 
-      draggable: currentTool === 'select' && !isRulerMode, opacity: el.opacity ?? 1,
+      // ĐÃ SỬA: Chỉ kéo được khi vật thể đã được chọn từ trước
+      draggable: currentTool === 'select' && !isRulerMode && (selectedId === el.id), 
+      opacity: el.opacity ?? 1,
       ...shadowProps,
       onMouseDown: (e) => { 
         e.cancelBubble = true; 
@@ -1031,7 +1031,6 @@ function App() {
             onMouseup={handleStageMouseUp}
             onTouchStart={handleStageMouseDown} 
             onClick={(e) => {
-              // CHỈ BỎ CHỌN NẾU LÀ CLICK CHUỘT VÀO VÙNG TRỐNG (KHÔNG PHẢI KÉO)
               if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current) {
                 setSelectedId(null);
               }
@@ -1047,7 +1046,7 @@ function App() {
             onDragEnd={(e) => {
               if (e.target === e.target.getStage()) {
                 setStagePos({ x: e.target.x(), y: e.target.y() });
-                setTimeout(() => { isCanvasDragging.current = false; }, 50); // Trễ 50ms để không kích hoạt onClick
+                setTimeout(() => { isCanvasDragging.current = false; }, 50);
               }
             }}
             scaleX={stageScale}
@@ -1133,7 +1132,6 @@ function App() {
             borderTop: (isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none', 
             boxShadow: (isRightOpen && selectedId) ? (isMobile ? '0 -5px 15px rgba(0,0,0,0.1)' : '-5px 0 15px rgba(0,0,0,0.1)') : 'none', 
             display: 'flex', flexDirection: 'column',
-            // CHẶN SỰ KIỆN LAN RA NGOÀI KHI CLICK VÀO BẢNG ĐIỀU KHIỂN
             onMouseDown: (e) => e.stopPropagation(),
             onTouchStart: (e) => e.stopPropagation(),
             onClick: (e) => e.stopPropagation()
