@@ -205,12 +205,12 @@ English
 
 ## Tác giả | Author
 
-Nguyễn Anh Minh
+Idon'tKnow
 
 Student Developer | Người phát triển dự án
 
 Project: PixelCraft Studio
-Repository: https://github.com/adofminh123/design-app
+
 
 ---
 
