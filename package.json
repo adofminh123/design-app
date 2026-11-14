@@ -9,15 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@imgly/background-removal": "^1.7.0",
-    "@imgly/background-removal-data": "^1.4.5",
-    "konva": "^9.3.1",
-    "lucide-react": "^1.73.0",
-    "onnxruntime-web": "^1.31.1",
+  "konva": "^9.3.1",
+    "lucide-react": "^0.468.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+   "react-dom": "^18.2.0",
     "react-konva": "^18.2.10",
-    "use-image": "^1.1.1",
+   "use-image": "^1.1.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
@@ -25,3 +22,4 @@
     "vite": "^5.1.0"
   }
 }
+
