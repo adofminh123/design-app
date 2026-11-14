@@ -90,11 +90,14 @@ function App() {
   
   const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
-  const [activeTab, setActiveTab] = useState('basic'); // 'basic' | 'effects' | 'colors'
+  const [activeTab, setActiveTab] = useState('basic'); 
 
   const [mainAreaSize, setMainAreaSize] = useState({ width: 800, height: 600 });
   const mainAreaRef = useRef(null);
   
+  // Dùng ref để kiểm soát logic auto-pan
+  const prevSelectedId = useRef(null);
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 1024);
     window.addEventListener('resize', handleResize);
@@ -124,7 +127,6 @@ function App() {
   const [brushSize, setBrushSize] = useState(5);
   const isDrawing = useRef(false);
 
-  // State cho việc Zoom 2 ngón tay
   const lastDist = useRef(0);
 
   const [isRulerMode, setIsRulerMode] = useState(false);
@@ -156,39 +158,47 @@ function App() {
     localStorage.setItem('canvas_size', JSON.stringify(canvasSize));
   }, [elements, bgColor, customShapes, canvasSize]);
 
-  // TỰ ĐỘNG CĂN GIỮA
+  // AUTO PAN: Chỉ chạy khi chọn MỘT VẬT THỂ MỚI (tránh bị giật khi kéo)
   useEffect(() => {
     if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
-      if (selectedId && layerRef.current) {
-        const node = layerRef.current.findOne('#' + selectedId);
-        if (node) {
-          let visibleW = mainAreaSize.width;
-          let visibleH = mainAreaSize.height;
+      if (selectedId) {
+        // Nếu đây là vật thể đã chọn từ trước đó, KHÔNG pan nữa
+        if (prevSelectedId.current === selectedId) return;
+        prevSelectedId.current = selectedId;
 
-          if (isMobile) {
-             if (isRightOpen) visibleH -= (window.innerHeight * 0.4); // Bù trừ 40% Bottom Sheet
-          } else {
-             if (isLeftOpen) visibleW -= 250;
-             if (isRightOpen) visibleW -= 300;
+        if (layerRef.current) {
+          const node = layerRef.current.findOne('#' + selectedId);
+          if (node) {
+            let visibleW = mainAreaSize.width;
+            let visibleH = mainAreaSize.height;
+
+            if (isMobile) {
+               if (isRightOpen) visibleH -= (window.innerHeight * 0.4); 
+            } else {
+               if (isLeftOpen) visibleW -= 250;
+               if (isRightOpen) visibleW -= 300;
+            }
+            
+            if (visibleW < 100) visibleW = 100;
+            if (visibleH < 100) visibleH = 100;
+
+            setStagePos({
+              x: visibleW / 2 - node.x() * stageScale,
+              y: visibleH / 2 - node.y() * stageScale
+            });
+            return;
           }
-          
-          if (visibleW < 100) visibleW = 100;
-          if (visibleH < 100) visibleH = 100;
-
-          setStagePos({
-            x: visibleW / 2 - node.x() * stageScale,
-            y: visibleH / 2 - node.y() * stageScale
-          });
-          return;
         }
+      } else {
+        prevSelectedId.current = null;
+        // Nếu không chọn ai, căn giữa Canvas
+        setStagePos({
+          x: mainAreaSize.width / 2,
+          y: mainAreaSize.height / 2
+        });
       }
-      
-      setStagePos({
-        x: mainAreaSize.width / 2,
-        y: mainAreaSize.height / 2
-      });
     }
-  }, [mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height, selectedId, isRightOpen, isLeftOpen, isMobile]);
+  }, [selectedId, mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height, isRightOpen, isLeftOpen, isMobile]);
 
   useEffect(() => {
     if (selectedId && currentTool === 'select' && !isRulerMode) {
@@ -275,14 +285,12 @@ function App() {
     });
   };
 
-  // LOGIC PINCH TO ZOOM (ZOOM 2 NGÓN)
   const handleTouchMove = (e) => {
     e.evt.preventDefault();
     const touch1 = e.evt.touches[0];
     const touch2 = e.evt.touches[1];
 
     if (touch1 && touch2) {
-      // Tắt vẽ và kéo khi phát hiện 2 ngón tay
       isDrawing.current = false;
       if (stageRef.current.isDragging()) {
         stageRef.current.stopDrag();
@@ -333,7 +341,10 @@ function App() {
       return;
     }
     if (currentTool !== 'brush') {
-      if (e.target === e.target.getStage()) setSelectedId(null); 
+      // Chỉ bỏ chọn nếu click chuột phải vào vùng trống (target === stage)
+      if (e.target === e.target.getStage()) {
+        setSelectedId(null); 
+      }
       return;
     }
     isDrawing.current = true;
@@ -681,15 +692,16 @@ function App() {
     const finalProps = {
       ...commonProps,
       stroke: el.stroke, strokeWidth: el.strokeWidth,
-      ...(el.type === 'text' && { text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily || 'Montserrat', fontStyle: el.fontStyle || 'normal', textDecoration: el.textDecoration || '', fill: el.fill, width: el.width, align: el.align }),
-      ...(el.type === 'rect' && { width: el.width, height: el.height, cornerRadius: el.cornerRadius || 0, fill: el.fill, scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
-      ...(el.type === 'circle' && { radius: el.radius, fill: el.fill }),
-      ...(el.type === 'polygon' && { radius: el.radius, sides: el.sides, fill: el.fill }),
-      ...(el.type === 'star' && { innerRadius: el.innerRadius, outerRadius: el.outerRadius, numPoints: el.numPoints, fill: el.fill }),
-      ...(el.type === 'arrow' && { points: el.points, stroke: el.stroke, strokeWidth: el.strokeWidth, pointerLength: el.pointerLength, pointerWidth: el.pointerWidth }),
+      fill: el.fill, // Đảm bảo fill được truyền đúng
+      ...(el.type === 'text' && { text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily || 'Montserrat', fontStyle: el.fontStyle || 'normal', textDecoration: el.textDecoration || '', align: el.align }),
+      ...(el.type === 'rect' && { width: el.width, height: el.height, cornerRadius: el.cornerRadius || 0, scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
+      ...(el.type === 'circle' && { radius: el.radius }),
+      ...(el.type === 'polygon' && { radius: el.radius, sides: el.sides }),
+      ...(el.type === 'star' && { innerRadius: el.innerRadius, outerRadius: el.outerRadius, numPoints: el.numPoints }),
+      ...(el.type === 'arrow' && { points: el.points, pointerLength: el.pointerLength, pointerWidth: el.pointerWidth }),
       ...(el.type === 'image' && { src: el.src, width: el.width, height: el.height, scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
-      ...(el.type === 'path' && { data: el.data[0], stroke: el.stroke, strokeWidth: el.strokeWidth, fill: el.fill, scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
-      ...(el.type === 'brush' && { points: el.points, stroke: el.stroke, strokeWidth: el.strokeWidth, tension: el.tension, lineCap: 'round', lineJoin: 'round' }),
+      ...(el.type === 'path' && { data: el.data[0], scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
+      ...(el.type === 'brush' && { points: el.points, tension: el.tension, lineCap: 'round', lineJoin: 'round' }),
     };
 
     if (el.type === 'text') return <Text key={el.id} {...finalProps} />;
@@ -709,7 +721,6 @@ function App() {
     
     return (
       <div style={{ padding: '15px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {/* TABS */}
         <div style={{ display: 'flex', borderBottom: '1px solid #ddd', marginBottom: '15px' }}>
           {['basic', 'effects', 'colors'].map(tab => (
             <button 
@@ -820,12 +831,12 @@ function App() {
 
           {activeTab === 'colors' && (
             <div>
-              {['text', 'rect', 'circle', 'polygon', 'star'].includes(selectedEl.type) && (
+              {['text', 'rect', 'circle', 'polygon', 'star', 'path', 'icon'].includes(selectedEl.type) && (
                 <div style={{ marginBottom: '15px' }}>
                   <label style={{ fontSize: '13px' }}>Màu nền:</label>
-                  <input type="color" value={selectedEl.fill} onChange={(e) => updateElement(selectedId, { fill: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
+                  <input type="color" value={selectedEl.fill === 'transparent' ? '#ffffff' : selectedEl.fill} onChange={(e) => updateElement(selectedId, { fill: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
                   
-                  {['rect', 'circle', 'polygon', 'star'].includes(selectedEl.type) && (
+                  {['rect', 'circle', 'polygon', 'star', 'path', 'icon'].includes(selectedEl.type) && (
                     <>
                       <label style={{ fontSize: '13px' }}>Màu viền:</label>
                       <input type="color" value={selectedEl.stroke || '#000000'} onChange={(e) => updateElement(selectedId, { stroke: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
@@ -867,7 +878,6 @@ function App() {
         </div>
       )}
 
-      {/* TOPBAR */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: '#e5e7eb', padding: '10px 15px', borderBottom: '1px solid #d1d5db', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <h2 style={{ fontSize: '18px', color: '#1f2937', margin: 0, fontWeight: '700' }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
@@ -902,7 +912,7 @@ function App() {
                 <span onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)} style={{ color: '#3b82f6', borderRadius: '50%', border: '1px solid #3b82f6', width: '14px', height: '14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', cursor: 'help' }}>i</span>
               </label>
               {showTooltip && (
-                <div style={{ position: 'absolute', top: '25px', left: '-20px', background: '#333', color: 'white', padding: '5px 10px', borderRadius: '5px', fontSize: '12px', whiteSpace: 'nowrap', zIndex: 100, boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>Chỉnh độ dày của bút vẽ và thước kẻ</div>
+                <div style={{ position: 'absolute', top: '25px', left: '-20px', background: '#333', color: 'white', padding: '5px 10px', borderRadius: '5px', fontSize: '12px', whiteSpace: 'nowrap', zIndex: 1000, boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>Chỉnh độ dày của bút vẽ và thước kẻ</div>
               )}
               <input type="range" min="1" max="30" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} style={{ width: '60px' }} />
               <span style={{ fontSize: '12px', width: '15px' }}>{brushSize}</span>
@@ -1059,7 +1069,7 @@ function App() {
             style={{ 
               position: 'absolute', 
               right: isMobile ? '20px' : (isRightOpen ? '300px' : '0px'), 
-              bottom: isMobile ? (isRightOpen ? 'calc(40vh + 20px)' : '20px') : 'auto', // Nút nổi lên trên Bottom Sheet
+              bottom: isMobile ? (isRightOpen ? 'calc(40vh + 20px)' : '20px') : 'auto', 
               top: isMobile ? 'auto' : '50%', 
               transform: isMobile ? 'none' : 'translateY(-50%)', 
               zIndex: 101, 
@@ -1090,9 +1100,9 @@ function App() {
             bottom: 0, 
             right: isMobile ? 0 : 0, 
             width: isMobile ? '100%' : (isRightOpen && selectedId ? '300px' : '0px'), 
-            height: isMobile ? '40vh' : '100%', // Giảm xuống 40vh cho mobile
+            height: isMobile ? '40vh' : '100%', 
             backgroundColor: '#f8fafc', 
-            zIndex: 999, 
+            zIndex: 9999, // Z-INDEX CAO NHẤT ĐỂ ĐÈ LÊN TRÊN CANVAS
             transform: (isRightOpen && selectedId) ? 'translateY(0)' : (isMobile ? 'translateY(100%)' : 'translateX(100%)'),
             transition: 'transform 0.3s ease-in-out',
             borderTopLeftRadius: isMobile ? '15px' : '0', 
@@ -1101,9 +1111,10 @@ function App() {
             borderTop: (isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none', 
             boxShadow: (isRightOpen && selectedId) ? (isMobile ? '0 -5px 15px rgba(0,0,0,0.1)' : '-5px 0 15px rgba(0,0,0,0.1)') : 'none', 
             display: 'flex', flexDirection: 'column',
-            // Chặn click ra ngoài làm mất bảng
+            // CHẶN SỰ KIỆN LAN RA NGOÀI KHI CLICK VÀO BẢNG ĐIỀU KHIỂN
             onMouseDown: (e) => e.stopPropagation(),
-            onTouchStart: (e) => e.stopPropagation()
+            onTouchStart: (e) => e.stopPropagation(),
+            onClick: (e) => e.stopPropagation()
           }}
         >
           {isMobile && (
@@ -1117,7 +1128,7 @@ function App() {
       </div>
 
       {isBuilderOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <div style={{ background: 'white', padding: '20px', borderRadius: '10px', width: '90%', maxWidth: '350px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
             <h3 style={{ marginBottom: '15px', textAlign: 'center' }}>Tạo Hình Tự Do</h3>
             <div className="input-group" style={{ marginBottom: '10px' }}>
