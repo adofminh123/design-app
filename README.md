@@ -1,4 +1,4 @@
-##🎨 PixelCraft Studio
+## PixelCraft Studio
 
 A Browser-Based 2D Graphic Design Application
 
@@ -6,7 +6,7 @@ A Browser-Based 2D Graphic Design Application
 
 ---
 
-##🇻🇳 Giới thiệu | Introduction 🇬🇧
+## 🇻🇳 Giới thiệu | Introduction 🇬🇧
 
 Tiếng Việt
 
@@ -21,8 +21,7 @@ PixelCraft Studio is a browser-based 2D graphic design application. It provides 
 This project aims to apply web development knowledge to build a practical application that combines an intuitive user interface with graphic editing tools.
 
 ---
-
-##✨ Tính năng chính | Key Features
+ ##  Tính năng chính | Key Features
 
 1. Canvas Editor – Trình chỉnh sửa Canvas
 
@@ -109,7 +108,7 @@ CSS| CSS| Interface styling
 
 ---
 
-##🚀 Cài đặt và chạy dự án | Installation & Setup
+## Cài đặt và chạy dự án | Installation & Setup
 
 Yêu cầu hệ thống | Requirements
 
@@ -117,37 +116,37 @@ Yêu cầu hệ thống | Requirements
 - npm
 - A modern web browser
 
-Bước 1: Clone repository
+## Bước 1: Clone repository
 
 ```bash
 git clone https://github.com/adofminh123/design-app.git
 ```
 
-##Bước 2: Di chuyển vào thư mục dự án | Navigate to the project directory
+## Bước 2: Di chuyển vào thư mục dự án | Navigate to the project directory
 
 ```bash
 cd design-app
 ```
 
-##Bước 3: Cài đặt dependencies | Install dependencies
+## Bước 3: Cài đặt dependencies | Install dependencies
 
 ```bash
 npm install
 ```
 
-##Bước 4: Khởi chạy ứng dụng | Start the development server
+## Bước 4: Khởi chạy ứng dụng | Start the development server
 
 ```bash
 npm run dev
 ```
 
-##Mở địa chỉ localhost được hiển thị trong terminal.
+## Mở địa chỉ localhost được hiển thị trong terminal.
 
 Open the localhost URL displayed in your terminal.
 
 ---
 
-##📦 Build dự án | Production Build
+## Build dự án | Production Build
 
 ```bash
 npm run build
@@ -163,7 +162,7 @@ npm run preview
 
 ---
 
-##📁 Cấu trúc dự án | Project Structure
+## Cấu trúc dự án | Project Structure
 
 ```text
 design-app/
@@ -186,7 +185,7 @@ design-app/
 
 ---
 
-##📝 Lưu ý | Notes
+## Lưu ý | Notes
 
 Tiếng Việt
 
@@ -204,7 +203,7 @@ English
 
 ---
 
-##👨‍💻 Tác giả | Author
+## Tác giả | Author
 
 Nguyễn Anh Minh
 
