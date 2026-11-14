@@ -3,13 +3,5 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'credentialless',
-    },
-  },
-  optimizeDeps: {
-    exclude: ['@imgly/background-removal', 'onnxruntime-web']
-  }
+  base: './', // Thêm dòng này để sử dụng đường dẫn tương đối
 })
