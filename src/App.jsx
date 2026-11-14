@@ -7,15 +7,9 @@ import * as LucideIcons from 'lucide-react';
 import ShapeLibrary from './components/ShapeLibrary';
 import './App.css';
 
-// MẸO BẢO MẬT API KEY (Chia nhỏ để bot không quét được)
-const K1_P1 = 'pk_f03da1265a86e47c1113d8';
-const K1_P2 = '753f8d5291';
-const K2_P1 = 'pk_bcb6518335e63ac9ef2b1f';
-const K2_P2 = 'a893f267c1';
-
 const POOF_BG_API_KEYS = [
-  K1_P1 + K1_P2,
-  K2_P1 + K2_P2
+  'pk_f03da1265a86e47c1113d8753f8d5291',
+  'pk_bcb6518335e63ac9ef2b1fa893f267c1'
 ];
 
 const getSvgPoints = (cx, cy, r, sides, isStar = false, innerR = 0) => {
@@ -101,8 +95,7 @@ function App() {
   const [mainAreaSize, setMainAreaSize] = useState({ width: 800, height: 600 });
   const mainAreaRef = useRef(null);
   
-  const prevSelectedId = useRef(null);
-  const isCanvasDragging = useRef(false); // Phân biệt click và kéo
+  const isCanvasDragging = useRef(false);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 1024);
@@ -164,45 +157,15 @@ function App() {
     localStorage.setItem('canvas_size', JSON.stringify(canvasSize));
   }, [elements, bgColor, customShapes, canvasSize]);
 
-  // TỰ ĐỘNG CĂN GIỮA: Chỉ chạy khi chọn MỘT VẬT THỂ MỚI
+  // KHỞI TẠO VỊ TRÍ BAN ĐẦU (Căn giữa canvas)
   useEffect(() => {
     if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
-      if (selectedId) {
-        if (prevSelectedId.current === selectedId) return;
-        prevSelectedId.current = selectedId;
-
-        if (layerRef.current) {
-          const node = layerRef.current.findOne('#' + selectedId);
-          if (node) {
-            let visibleW = mainAreaSize.width;
-            let visibleH = mainAreaSize.height;
-
-            if (isMobile) {
-               if (isRightOpen) visibleH = mainAreaSize.height * 0.6; 
-            } else {
-               if (isLeftOpen) visibleW -= 250;
-               if (isRightOpen) visibleW -= 300;
-            }
-            
-            if (visibleW < 100) visibleW = 100;
-            if (visibleH < 100) visibleH = 100;
-
-            setStagePos({
-              x: visibleW / 2 - node.x() * stageScale,
-              y: visibleH / 2 - node.y() * stageScale
-            });
-            return;
-          }
-        }
-      } else {
-        prevSelectedId.current = null;
-        setStagePos({
-          x: mainAreaSize.width / 2,
-          y: mainAreaSize.height / 2
-        });
-      }
+      setStagePos({
+        x: mainAreaSize.width / 2,
+        y: mainAreaSize.height / 2
+      });
     }
-  }, [selectedId, mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height, isMobile, isRightOpen, isLeftOpen, stageScale]);
+  }, [mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height]);
 
   useEffect(() => {
     if (selectedId && currentTool === 'select' && !isRulerMode) {
@@ -424,8 +387,9 @@ function App() {
       reader.readAsText(file);
     } else if (file.type.startsWith('image/')) {
       const reader = new FileReader();
+      const center = getCenterPosition();
       reader.onload = () => {
-        const newEl = { id: uuidv4(), type: 'image', x: 0, y: 0, width: 250, height: 250, src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+        const newEl = { id: uuidv4(), type: 'image', x: center.x, y: center.y, width: 250, height: 250, src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
         saveToHistory([...elements, newEl]); setCurrentTool('select');
         if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
       };
@@ -436,8 +400,9 @@ function App() {
   const handleImageUpload = (e) => {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
+    const center = getCenterPosition();
     reader.onload = () => {
-      const newEl = { id: uuidv4(), type: 'image', x: 0, y: 0, width: 250, height: 250, src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+      const newEl = { id: uuidv4(), type: 'image', x: center.x, y: center.y, width: 250, height: 250, src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
       saveToHistory([...elements, newEl]); setCurrentTool('select');
       if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
     };
@@ -485,6 +450,24 @@ function App() {
     } catch (error) { alert("Lỗi: " + error.message); setIsProcessing(false); }
   };
 
+  // HÀM TÍNH TOÁN TÂM MÀN HÌNH HIỆN TẠI
+  const getCenterPosition = () => {
+    if (!stageRef.current) return { x: 0, y: 0 };
+    
+    // Lấy tọa độ tâm của vùng hiển thị (trừ đi vị trí cuộn và chia cho tỉ lệ zoom)
+    let visibleW = mainAreaSize.width;
+    let visibleH = mainAreaSize.height;
+
+    // Trên mobile, nếu Bottom Sheet đang mở, ta cần dịch tâm lên trên một chút để không bị che khuất
+    if (isMobile && isRightOpen) {
+        visibleH = visibleH * 0.6; 
+    }
+
+    const centerX = (visibleW / 2 - stagePos.x) / stageScale;
+    const centerY = (visibleH / 2 - stagePos.y) / stageScale;
+    return { x: centerX, y: centerY };
+  };
+
   const centerSelected = () => {
     const node = layerRef.current.findOne('#' + selectedId);
     if (!node) return;
@@ -496,7 +479,8 @@ function App() {
 
   const addBasicShape = (type) => {
     setCurrentTool('select');
-    const base = { id: uuidv4(), x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1, stroke: '#000000', strokeWidth: 0, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+    const center = getCenterPosition();
+    const base = { id: uuidv4(), x: center.x, y: center.y, rotation: 0, scaleX: 1, scaleY: 1, stroke: '#000000', strokeWidth: 0, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     let newEl = {};
     if (type === 'text') newEl = { ...base, type, text: 'Văn bản mới', fontSize: 40, fontFamily: 'Montserrat', fontStyle: 'normal', fill: '#000000', width: 200, align: 'center' };
     if (type === 'rect') newEl = { ...base, type, width: 200, height: 150, cornerRadius: 0, fill: '#3b82f6' };
@@ -514,7 +498,8 @@ function App() {
 
   const addCustomShape = (shapeTemplate) => {
     setCurrentTool('select');
-    const newEl = { ...shapeTemplate, id: uuidv4(), x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+    const center = getCenterPosition();
+    const newEl = { ...shapeTemplate, id: uuidv4(), x: center.x, y: center.y, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]); 
     setSelectedId(newEl.id);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
@@ -536,7 +521,8 @@ function App() {
 
   const addPathShape = (pathData) => {
     setCurrentTool('select');
-    const newEl = { id: uuidv4(), type: 'path', x: 0, y: 0, rotation: 0, data: [pathData], stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent', scaleX: 2.5, scaleY: 2.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+    const center = getCenterPosition();
+    const newEl = { id: uuidv4(), type: 'path', x: center.x, y: center.y, rotation: 0, data: [pathData], stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent', scaleX: 2.5, scaleY: 2.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]); 
     setSelectedId(newEl.id);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
@@ -546,7 +532,8 @@ function App() {
     setCurrentTool('select');
     const paths = getIconPaths(LucideIcons[iconName]);
     if (paths.length === 0) return;
-    const newEl = { id: uuidv4(), type: 'icon', x: 0, y: 0, rotation: 0, data: paths, stroke: '#3b82f6', strokeWidth: 1.5, fill: 'transparent', scaleX: 8, scaleY: 8, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+    const center = getCenterPosition();
+    const newEl = { id: uuidv4(), type: 'icon', x: center.x, y: center.y, rotation: 0, data: paths, stroke: '#3b82f6', strokeWidth: 1.5, fill: 'transparent', scaleX: 8, scaleY: 8, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]); 
     setSelectedId(newEl.id);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
@@ -659,8 +646,7 @@ function App() {
 
     const commonProps = { 
       id: el.id, x: el.x || 0, y: el.y || 0, rotation: el.rotation || 0, 
-      // ĐÃ SỬA: Chỉ kéo được khi vật thể đã được chọn từ trước
-      draggable: currentTool === 'select' && !isRulerMode && (selectedId === el.id), 
+      draggable: currentTool === 'select' && !isRulerMode && (selectedId === el.id), // CHỈ KÉO KHI ĐÃ CHỌN
       opacity: el.opacity ?? 1,
       ...shadowProps,
       onMouseDown: (e) => { 
