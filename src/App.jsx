@@ -38,20 +38,31 @@ const getIconPaths = (IconComponent) => {
     if (!svg) return [];
     
     let paths = [];
-    svg.querySelectorAll('path, circle, line, rect, polygon, polyline').forEach(node => {
+    svg.querySelectorAll('path, circle, line, rect, polygon, polyline, ellipse').forEach(node => {
       if (node.tagName === 'path') {
         let d = node.getAttribute('d') || "";
-        const subPaths = d.split(/(?=[Mm])/);
-        subPaths.forEach(sp => { if (sp.trim()) paths.push(sp.trim()); });
+        // FIX TRIỆT ĐỂ: Chèn thêm lệnh 'l' (line) cho tọa độ tiếp theo để không bị kéo dài ngoằng
+        if (d.trim().startsWith('m')) {
+          d = d.trim().replace(/^m\s*([\d.-]+)[\s,]+([\d.-]+)/i, 'M $1 $2 l');
+        }
+        paths.push(d.trim());
       } else if (node.tagName === 'circle') {
         const cx = Number(node.getAttribute('cx') || 0); const cy = Number(node.getAttribute('cy') || 0); const r = Number(node.getAttribute('r') || 0);
         paths.push(`M ${cx-r} ${cy} a ${r} ${r} 0 1 0 ${r*2} 0 a ${r} ${r} 0 1 0 -${r*2} 0`);
+      } else if (node.tagName === 'ellipse') {
+        const cx = Number(node.getAttribute('cx') || 0); const cy = Number(node.getAttribute('cy') || 0); const rx = Number(node.getAttribute('rx') || 0); const ry = Number(node.getAttribute('ry') || 0);
+        paths.push(`M ${cx-rx} ${cy} a ${rx} ${ry} 0 1 0 ${rx*2} 0 a ${rx} ${ry} 0 1 0 -${rx*2} 0`);
       } else if (node.tagName === 'line') {
         const x1 = Number(node.getAttribute('x1') || 0); const y1 = Number(node.getAttribute('y1') || 0); const x2 = Number(node.getAttribute('x2') || 0); const y2 = Number(node.getAttribute('y2') || 0);
         paths.push(`M ${x1} ${y1} L ${x2} ${y2}`);
       } else if (node.tagName === 'rect') {
         const x = Number(node.getAttribute('x') || 0); const y = Number(node.getAttribute('y') || 0); const w = Number(node.getAttribute('width') || 0); const h = Number(node.getAttribute('height') || 0);
-        paths.push(`M ${x} ${y} h ${w} v ${h} h -${w} Z`);
+        const rx = Number(node.getAttribute('rx') || 0);
+        if (rx > 0) {
+          paths.push(`M ${x+rx} ${y} h ${w-rx*2} a ${rx} ${rx} 0 0 1 ${rx} ${rx} v ${h-rx*2} a ${rx} ${rx} 0 0 1 -${rx} ${rx} h -${w-rx*2} a ${rx} ${rx} 0 0 1 -${rx} -${rx} v -${h-rx*2} a ${rx} ${rx} 0 0 1 ${rx} -${rx} Z`);
+        } else {
+          paths.push(`M ${x} ${y} h ${w} v ${h} h -${w} Z`);
+        }
       } else if (node.tagName === 'polygon' || node.tagName === 'polyline') {
         const points = (node.getAttribute('points') || "").trim().split(/[\s,]+/);
         if (points.length >= 4) {
@@ -551,9 +562,8 @@ function App() {
     setCurrentTool('select');
     const paths = getIconPaths(LucideIcons[iconName]);
     
-    // Thêm log cảnh báo để dễ debug
     if (paths.length === 0) {
-      console.warn(`[Lỗi Icon] Không thể lấy SVG path cho icon: ${iconName}. Hãy kiểm tra lại thư viện lucide-react.`);
+      console.warn(`[Lỗi Icon] Không thể lấy SVG path cho icon: ${iconName}.`);
       return;
     }
     
@@ -692,7 +702,7 @@ function App() {
       onTransformEnd: (e) => handleTransformEnd(e, el),
     };
 
-    // FIX LỖI ICON: Chuyển từ KonvaImage sang Path
+    // RENDER ICON CHUẨN BẰNG PATH
     if (el.type === 'icon') {
       return (
         <Path
@@ -704,6 +714,8 @@ function App() {
           fill={el.fill}
           scaleX={el.scaleX || 1}
           scaleY={el.scaleY || 1}
+          lineCap="round"
+          lineJoin="round"
         />
       );
     }
@@ -721,7 +733,6 @@ function App() {
       ...(el.type === 'image' && { src: el.src, width: el.width, height: el.height, scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
       ...(el.type === 'path' && { data: el.data[0], scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
       ...(el.type === 'brush' && { points: el.points, tension: el.tension, lineCap: 'round', lineJoin: 'round' }),
-      // Đã xóa dòng config của icon ở đây vì đã return ở trên
     };
 
     if (el.type === 'text') return <Text key={el.id} {...finalProps} />;
@@ -1090,7 +1101,7 @@ function App() {
             </Layer>
           </Stage>
 
-          {/* THANH ZOOM - Đã Fix Lỗi Nút Reset Bị Lệch */}
+          {/* THANH ZOOM */}
           <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'white', padding: '5px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', display: 'flex', gap: '5px', alignItems: 'center', zIndex: 10 }}>
             <button onClick={() => setStageScale(s => Math.max(0.1, s - 0.1))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>-</button>
             <span style={{ fontSize: '12px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{Math.round(stageScale * 100)}%</span>
