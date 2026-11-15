@@ -478,7 +478,6 @@ function App() {
     let visibleH = mainAreaSize.height;
     if (isMobile && isRightOpen) { visibleH = visibleH * 0.6; }
     
-    // Tính toán tọa độ điểm giữa màn hình so với hệ tọa độ của Canvas
     const centerX = (visibleW / 2 - stagePos.x) / stageScale;
     const centerY = (visibleH / 2 - stagePos.y) / stageScale;
     return { x: centerX, y: centerY };
@@ -551,7 +550,13 @@ function App() {
   const addLucideIcon = (iconName) => {
     setCurrentTool('select');
     const paths = getIconPaths(LucideIcons[iconName]);
-    if (paths.length === 0) return;
+    
+    // Thêm log cảnh báo để dễ debug
+    if (paths.length === 0) {
+      console.warn(`[Lỗi Icon] Không thể lấy SVG path cho icon: ${iconName}. Hãy kiểm tra lại thư viện lucide-react.`);
+      return;
+    }
+    
     const center = getCenterPosition();
     const newEl = { id: uuidv4(), type: 'icon', x: center.x, y: center.y, rotation: 0, data: paths, stroke: '#3b82f6', strokeWidth: 1.5, fill: 'transparent', scaleX: 8, scaleY: 8, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]); 
@@ -666,7 +671,7 @@ function App() {
 
     const commonProps = { 
       id: el.id, x: el.x || 0, y: el.y || 0, rotation: el.rotation || 0, 
-      draggable: currentTool === 'select' && !isRulerMode && (selectedId === el.id), // CHỈ KÉO KHI ĐÃ CHỌN
+      draggable: currentTool === 'select' && !isRulerMode && (selectedId === el.id), 
       opacity: el.opacity ?? 1,
       ...shadowProps,
       onMouseDown: (e) => { 
@@ -687,9 +692,19 @@ function App() {
       onTransformEnd: (e) => handleTransformEnd(e, el),
     };
 
+    // FIX LỖI ICON: Chuyển từ KonvaImage sang Path
     if (el.type === 'icon') {
       return (
-        <KonvaImage key={el.id} {...commonProps} />
+        <Path
+          key={el.id}
+          {...commonProps}
+          data={el.data.join(' ')}
+          stroke={el.stroke}
+          strokeWidth={el.strokeWidth}
+          fill={el.fill}
+          scaleX={el.scaleX || 1}
+          scaleY={el.scaleY || 1}
+        />
       );
     }
 
@@ -706,6 +721,7 @@ function App() {
       ...(el.type === 'image' && { src: el.src, width: el.width, height: el.height, scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
       ...(el.type === 'path' && { data: el.data[0], scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
       ...(el.type === 'brush' && { points: el.points, tension: el.tension, lineCap: 'round', lineJoin: 'round' }),
+      // Đã xóa dòng config của icon ở đây vì đã return ở trên
     };
 
     if (el.type === 'text') return <Text key={el.id} {...finalProps} />;
@@ -1074,12 +1090,18 @@ function App() {
             </Layer>
           </Stage>
 
-          {/* THANH ZOOM */}
+          {/* THANH ZOOM - Đã Fix Lỗi Nút Reset Bị Lệch */}
           <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'white', padding: '5px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', display: 'flex', gap: '5px', alignItems: 'center', zIndex: 10 }}>
             <button onClick={() => setStageScale(s => Math.max(0.1, s - 0.1))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>-</button>
             <span style={{ fontSize: '12px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{Math.round(stageScale * 100)}%</span>
             <button onClick={() => setStageScale(s => Math.min(5, s + 0.1))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
-            <button onClick={() => { setStageScale(1); setStagePos({x: mainAreaSize.width / 2, y: mainAreaSize.height / 2}); }} style={{ background: '#e5e7eb', border: 'none', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Reset</button>
+            <button onClick={() => {
+              setStageScale(1);
+              setStagePos({
+                x: mainAreaSize.width / 2 - canvasSize.width / 2,
+                y: mainAreaSize.height / 2 - canvasSize.height / 2,
+              });
+            }} style={{ background: '#e5e7eb', border: 'none', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Reset</button>
           </div>
         </div>
 
