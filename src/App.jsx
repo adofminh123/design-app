@@ -136,9 +136,14 @@ function App() {
   const [openProjectIds, setOpenProjectIds] = useState([]);
   const [showProjectMenu, setShowProjectMenu] = useState(false);
   const [showAddTabPopup, setShowAddTabPopup] = useState(false);
-  // ✅ Fix: popup fix ra khỏi taskbar, dùng position fixed
   const addTabBtnRef = useRef(null);
   const [addTabPopupPos, setAddTabPopupPos] = useState({ left: 0, top: 0 });
+
+  // ✅ Custom modal states (thay prompt/confirm)
+  const promptResolveRef = useRef(null);
+  const confirmResolveRef = useRef(null);
+  const [promptState, setPromptState] = useState(null);
+  const [confirmState, setConfirmState] = useState(null);
 
   const [elements, setElements] = useState(getInitialElements);
   const [customShapes, setCustomShapes] = useState(getInitialCustomShapes);
@@ -175,6 +180,42 @@ function App() {
   const [isEditingZoom, setIsEditingZoom] = useState(false);
   const [zoomInputValue, setZoomInputValue] = useState('');
 
+  // ============ MODAL HELPERS ============
+  const showPrompt = (title, defaultValue = '') => new Promise((resolve) => {
+    promptResolveRef.current = resolve;
+    setPromptState({ title, value: defaultValue });
+  });
+
+  const handlePromptConfirm = () => {
+    const value = promptState?.value?.trim() || '';
+    setPromptState(null);
+    promptResolveRef.current?.(value || null);
+    promptResolveRef.current = null;
+  };
+
+  const handlePromptCancel = () => {
+    setPromptState(null);
+    promptResolveRef.current?.(null);
+    promptResolveRef.current = null;
+  };
+
+  const showConfirm = (title) => new Promise((resolve) => {
+    confirmResolveRef.current = resolve;
+    setConfirmState({ title });
+  });
+
+  const handleConfirmYes = () => {
+    setConfirmState(null);
+    confirmResolveRef.current?.(true);
+    confirmResolveRef.current = null;
+  };
+
+  const handleConfirmNo = () => {
+    setConfirmState(null);
+    confirmResolveRef.current?.(false);
+    confirmResolveRef.current = null;
+  };
+
   useEffect(() => {
     if (document.getElementById('pixelcraft-fonts')) return;
     const link = document.createElement('link');
@@ -210,7 +251,6 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ✅ Đóng popup thêm tab khi resize
   useEffect(() => {
     const onResize = () => setShowAddTabPopup(false);
     window.addEventListener('resize', onResize);
@@ -359,6 +399,8 @@ function App() {
         deleteSelected();
       } else if (e.key === 'Escape') {
         e.preventDefault();
+        if (promptState) { handlePromptCancel(); return; }
+        if (confirmState) { handleConfirmNo(); return; }
         if (showAddTabPopup) { setShowAddTabPopup(false); return; }
         if (showProjectMenu) { setShowProjectMenu(false); return; }
         if (isRulerMode) { setIsRulerMode(false); setTempLine(null); }
@@ -368,7 +410,7 @@ function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [historyStep, history, selectedId, elements, currentTool, isRulerMode, showAddTabPopup, showProjectMenu]);
+  }, [historyStep, history, selectedId, elements, currentTool, isRulerMode, showAddTabPopup, showProjectMenu, promptState, confirmState]);
 
   const saveToHistory = (newElements) => {
     const newHistory = history.slice(0, historyStep + 1);
@@ -389,13 +431,13 @@ function App() {
     }
   };
 
-  const handleReset = () => {
-    if (window.confirm("Bạn có chắc chắn muốn ĐẶT LẠI TỪ ĐẦU?")) {
-      setElements([]); setBgColor('#ffffff'); setSelectedId(null); setCurrentTool('select'); setHistory([[]]); setHistoryStep(0);
-      setStageScale(1);
-      userHasMovedCanvas.current = false;
-      setStagePos({ x: mainAreaSize.width / 2 - canvasSize.width / 2, y: mainAreaSize.height / 2 - canvasSize.height / 2 });
-    }
+  const handleReset = async () => {
+    const ok = await showConfirm("Bạn có chắc chắn muốn ĐẶT LẠI TỪ ĐẦU?");
+    if (!ok) return;
+    setElements([]); setBgColor('#ffffff'); setSelectedId(null); setCurrentTool('select'); setHistory([[]]); setHistoryStep(0);
+    setStageScale(1);
+    userHasMovedCanvas.current = false;
+    setStagePos({ x: mainAreaSize.width / 2 - canvasSize.width / 2, y: mainAreaSize.height / 2 - canvasSize.height / 2 });
   };
 
   const setZoomLevel = (newPercent) => {
@@ -448,6 +490,13 @@ function App() {
     if (touch1 && touch2) {
       isDrawing.current = false;
       if (stageRef.current.isDragging()) stageRef.current.stopDrag();
+      if (layerRef.current) {
+        try {
+          layerRef.current.getChildren().forEach(child => {
+            if (child.isDragging && child.isDragging()) child.stopDrag();
+          });
+        } catch {}
+      }
       const p1 = { x: touch1.clientX, y: touch1.clientY };
       const p2 = { x: touch2.clientX, y: touch2.clientY };
       const newDist = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
@@ -675,21 +724,26 @@ function App() {
     setIsBuilderOpen(false);
   };
 
-  const deleteCustomShape = (e, shapeId) => {
+  const deleteCustomShape = async (e, shapeId) => {
     e.stopPropagation();
-    if (window.confirm("Bạn có chắc muốn xoá hình này khỏi thư viện?")) setCustomShapes(customShapes.filter(s => s.id !== shapeId));
+    const ok = await showConfirm("Bạn có chắc muốn xoá hình này khỏi thư viện?");
+    if (!ok) return;
+    setCustomShapes(customShapes.filter(s => s.id !== shapeId));
   };
 
-  const deleteAllCustomShapes = () => {
-    if (window.confirm("Bạn có chắc muốn XOÁ TẤT CẢ hình tự do trong thư viện không?")) setCustomShapes([]);
+  const deleteAllCustomShapes = async () => {
+    const ok = await showConfirm("Bạn có chắc muốn XOÁ TẤT CẢ hình tự do trong thư viện không?");
+    if (!ok) return;
+    setCustomShapes([]);
   };
 
   const addPathShape = (pathData) => {
     setCurrentTool('select');
     setIsRulerMode(false);
     const center = getCenterPosition();
-    saveToHistory([...elements, { id: uuidv4(), type: 'path', x: center.x, y: center.y, rotation: 0, data: [pathData], stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent', scaleX: 2.5, scaleY: 2.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' }]);
-    setSelectedId(elements[elements.length - 1]?.id);
+    const newEl = { id: uuidv4(), type: 'path', x: center.x, y: center.y, rotation: 0, data: [pathData], stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent', scaleX: 2.5, scaleY: 2.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
+    saveToHistory([...elements, newEl]);
+    setSelectedId(newEl.id);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
 
@@ -737,8 +791,8 @@ function App() {
     saveToHistory(elements.map(item => item.id === el.id ? { ...item, ...newProps } : item));
   };
 
-  const exportPng = () => {
-    const fileName = prompt("Nhập tên file ảnh (không cần đuôi .png):", "pixelcraft-image");
+  const exportPng = async () => {
+    const fileName = await showPrompt("Nhập tên file ảnh (không cần đuôi .png):", "pixelcraft-image");
     if (!fileName) return;
     if (trRef.current) trRef.current.hide();
     const oldScale = stageRef.current.scaleX();
@@ -757,8 +811,8 @@ function App() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
-  const saveProject = () => {
-    const fileName = prompt("Nhập tên file dự án (không cần đuôi .json):", "pixelcraft-project");
+  const saveProject = async () => {
+    const fileName = await showPrompt("Nhập tên file dự án (không cần đuôi .json):", "pixelcraft-project");
     if (!fileName) return;
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ elements, bgColor, canvasSize }));
     const a = document.createElement('a');
@@ -793,7 +847,7 @@ function App() {
     } : {};
     const commonProps = {
       id: el.id, x: el.x || 0, y: el.y || 0, rotation: el.rotation || 0,
-      draggable: currentTool === 'select' && !isRulerMode && (selectedId === el.id),
+      draggable: currentTool === 'select' && !isRulerMode && (isMobile || selectedId === el.id),
       opacity: el.opacity ?? 1, ...shadowProps,
       onMouseDown: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
       onTap: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
@@ -890,8 +944,8 @@ function App() {
     openProject(id);
   };
 
-  const handleCreateProject = () => {
-    const name = prompt('Tên project mới:', `Dự án ${projects.length + 1}`);
+  const handleCreateProject = async () => {
+    const name = await showPrompt('Tên project mới:', `Dự án ${projects.length + 1}`);
     if (!name) return;
     createProjectWithName(name);
   };
@@ -907,8 +961,9 @@ function App() {
 
   const handleNewTabProject = () => { setShowProjectMenu(false); handleCreateProject(); };
 
-  const deleteProject = (id) => {
-    if (!window.confirm('Xoá project này? Không thể hoàn tác.')) return;
+  const deleteProject = async (id) => {
+    const ok = await showConfirm('Xoá project này? Không thể hoàn tác.');
+    if (!ok) return;
     localStorage.removeItem(`project_${id}`);
     const newList = projects.filter(p => p.id !== id);
     localStorage.setItem('projects', JSON.stringify(newList));
@@ -917,10 +972,10 @@ function App() {
     if (currentProjectId === id) { setView('lobby'); setCurrentProjectId(null); setSelectedId(null); }
   };
 
-  const renameProject = (id) => {
+  const renameProject = async (id) => {
     const project = projects.find(p => p.id === id);
     if (!project) return;
-    const newName = prompt('Tên mới:', project.name);
+    const newName = await showPrompt('Tên mới:', project.name);
     if (!newName || newName === project.name) return;
     const newList = projects.map(p => p.id === id ? { ...p, name: newName } : p);
     localStorage.setItem('projects', JSON.stringify(newList));
@@ -929,11 +984,16 @@ function App() {
     if (data) { try { const proj = JSON.parse(data); proj.name = newName; localStorage.setItem(`project_${id}`, JSON.stringify(proj)); } catch {} }
   };
 
-  // ✅ Mở popup thêm tab với vị trí fixed (không bị taskbar cắt)
   const openAddTabPopup = () => {
+    if (showAddTabPopup) { setShowAddTabPopup(false); return; }
     if (addTabBtnRef.current) {
       const rect = addTabBtnRef.current.getBoundingClientRect();
-      setAddTabPopupPos({ left: rect.left, top: rect.bottom + 4 });
+      const POPUP_W = 280;
+      const PADDING = 8;
+      let left = rect.left;
+      if (left + POPUP_W > window.innerWidth - PADDING) left = window.innerWidth - POPUP_W - PADDING;
+      if (left < PADDING) left = PADDING;
+      setAddTabPopupPos({ left, top: rect.bottom + 4 });
     }
     setShowAddTabPopup(true);
   };
@@ -1056,25 +1116,42 @@ function App() {
     );
   };
 
+  // ==================== LOBBY ====================
   if (view === 'lobby') {
     return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '40px 20px' }}>
+      <div style={{ minHeight: '100vh', background: '#f5f5f7', padding: '40px 20px' }}>
         <div style={{ maxWidth: '960px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-            <h1 style={{ color: 'white', fontSize: '48px', marginBottom: '8px' }}><span style={{ color: '#fbbf24' }}>Pixel</span>Craft</h1>
-            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '16px' }}>Chọn project để tiếp tục, hoặc tạo project mới</p>
+            <h1 style={{ color: '#1f2937', fontSize: '48px', marginBottom: '8px' }}>
+              <span style={{ color: '#8b5cf6' }}>Pixel</span>Craft
+            </h1>
+            <p style={{ color: '#6b7280', fontSize: '16px' }}>Chọn project để tiếp tục, hoặc tạo project mới</p>
           </div>
+
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '36px' }}>
-            <button onClick={handleCreateProject} style={{ padding: '14px 32px', fontSize: '16px', fontWeight: 'bold', background: '#10b981', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(16,185,129,0.4)' }}>+ Tạo Project Mới</button>
+            <button onClick={handleCreateProject} style={{
+              padding: '14px 32px', fontSize: '16px', fontWeight: 'bold',
+              background: '#10b981', color: 'white', border: 'none',
+              borderRadius: '10px', cursor: 'pointer',
+              boxShadow: '0 4px 15px rgba(16,185,129,0.3)'
+            }}>+ Tạo Project Mới</button>
           </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '20px' }}>
             {projects.length === 0 && (
-              <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'rgba(255,255,255,0.7)', padding: '60px 20px', fontSize: '15px' }}>Chưa có project nào. Bấm "Tạo Project Mới" để bắt đầu ✨</div>
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#9ca3af', padding: '60px 20px', fontSize: '15px' }}>
+                Chưa có project nào. Bấm "Tạo Project Mới" để bắt đầu ✨
+              </div>
             )}
             {projects.map(p => (
-              <div key={p.id} onClick={() => openProject(p.id)} style={{ background: 'white', borderRadius: '12px', padding: '20px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', position: 'relative', transition: 'transform 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
-                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
+              <div key={p.id} onClick={() => openProject(p.id)} style={{
+                background: 'white', borderRadius: '12px', padding: '20px',
+                cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.05)',
+                position: 'relative', transition: 'transform 0.15s, box-shadow 0.15s'
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.05)'; }}
+              >
                 <div style={{ fontSize: '30px', marginBottom: '10px' }}>📄</div>
                 <h3 style={{ margin: '0 0 6px', color: '#1f2937', fontSize: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</h3>
                 <p style={{ margin: 0, color: '#6b7280', fontSize: '12px' }}>
@@ -1088,10 +1165,41 @@ function App() {
             ))}
           </div>
         </div>
+
+        {/* Modal Prompt */}
+        {promptState && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+            <div style={{ background: 'white', borderRadius: '10px', padding: '20px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+              <h3 style={{ margin: '0 0 15px', fontSize: '16px', color: '#1f2937' }}>{promptState.title}</h3>
+              <input autoFocus type="text" value={promptState.value}
+                onChange={(e) => setPromptState({ ...promptState, value: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter') handlePromptConfirm(); if (e.key === 'Escape') handlePromptCancel(); }}
+                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', boxSizing: 'border-box', outline: 'none' }} />
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button onClick={handlePromptCancel} style={{ padding: '8px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Hủy</button>
+                <button onClick={handlePromptConfirm} style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>OK</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Confirm */}
+        {confirmState && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+            <div style={{ background: 'white', borderRadius: '10px', padding: '20px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+              <h3 style={{ margin: '0 0 15px', fontSize: '15px', color: '#1f2937', lineHeight: 1.5 }}>{confirmState.title}</h3>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button onClick={handleConfirmNo} style={{ padding: '8px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Hủy</button>
+                <button onClick={handleConfirmYes} style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Xác nhận</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
+  // ==================== EDITOR ====================
   return (
     <div className="app-container" style={{ flexDirection: 'column' }} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       {isDragging && (
@@ -1106,8 +1214,8 @@ function App() {
         </div>
       )}
 
-      {/* ==================== TASKBAR ==================== */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', background: '#d1d5db', padding: '6px 10px 0', overflowX: 'auto', flexShrink: 0, borderBottom: '1px solid #9ca3af', minHeight: '36px', position: 'relative' }}>
+      {/* TASKBAR */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', background: '#d1d5db', padding: '6px 10px 0', overflowX: 'auto', flexShrink: 0, borderBottom: '1px solid #9ca3af', minHeight: '36px', position: 'relative', WebkitOverflowScrolling: 'touch' }}>
         {openProjectIds.map(id => {
           const proj = projects.find(p => p.id === id);
           if (!proj) return null;
@@ -1127,31 +1235,22 @@ function App() {
             </div>
           );
         })}
-
-        {/* ✅ Nút "+" — chỉ mở popup, KHÔNG render popup ở đây */}
-        <button
-          ref={addTabBtnRef}
-          onClick={openAddTabPopup}
-          title="Thêm tab"
+        <button ref={addTabBtnRef} onClick={openAddTabPopup} title="Thêm tab"
           style={{
             padding: '5px 12px',
             background: showAddTabPopup ? '#3b82f6' : 'rgba(255,255,255,0.4)',
             color: showAddTabPopup ? '#fff' : '#374151',
-            border: '1px solid #9ca3af',
-            borderRadius: '4px 4px 0 0',
+            border: '1px solid #9ca3af', borderRadius: '4px 4px 0 0',
             cursor: 'pointer', fontSize: '16px', fontWeight: 'bold',
             marginLeft: '4px', lineHeight: 1, flexShrink: 0
           }}>+</button>
       </div>
 
-      {/* ✅ POPUP THÊM TAB — render ngoài taskbar, dùng position: fixed để không bị overflow cắt */}
       {showAddTabPopup && (
         <>
           <div onClick={() => setShowAddTabPopup(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
           <div style={{
-            position: 'fixed',
-            top: addTabPopupPos.top,
-            left: addTabPopupPos.left,
+            position: 'fixed', top: addTabPopupPos.top, left: addTabPopupPos.left,
             background: 'white', border: '1px solid #ddd', borderRadius: '8px',
             boxShadow: '0 4px 16px rgba(0,0,0,0.2)', width: '280px',
             zIndex: 999, overflow: 'hidden'
@@ -1159,41 +1258,23 @@ function App() {
             <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}>
               <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Thêm tab</div>
             </div>
-
-            <button
-              onClick={() => { setShowAddTabPopup(false); handleCreateProject(); }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                width: '100%', padding: '12px 14px',
-                background: 'none', border: 'none', textAlign: 'left',
-                cursor: 'pointer', fontSize: '13px', fontWeight: 'bold',
-                color: '#10b981', borderBottom: '1px solid #eee'
-              }}
+            <button onClick={() => { setShowAddTabPopup(false); handleCreateProject(); }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '12px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', color: '#10b981', borderBottom: '1px solid #eee' }}
               onMouseEnter={e => e.currentTarget.style.background = '#ecfdf5'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}>
               <span style={{ fontSize: '18px' }}>✨</span>
               <span>Tạo project mới</span>
             </button>
-
             <div style={{ padding: '8px 14px 4px', fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f3f4f6' }}>
               Dùng project có sẵn
             </div>
-
             <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
               {availableProjects.length === 0 ? (
-                <div style={{ padding: '14px', fontSize: '12px', color: '#9ca3af', fontStyle: 'italic', textAlign: 'center' }}>
-                  Không còn project nào
-                </div>
+                <div style={{ padding: '14px', fontSize: '12px', color: '#9ca3af', fontStyle: 'italic', textAlign: 'center' }}>Không còn project nào</div>
               ) : (
                 availableProjects.map(p => (
-                  <button key={p.id}
-                    onClick={() => { setShowAddTabPopup(false); openProject(p.id); }}
-                    style={{
-                      display: 'block', width: '100%', padding: '10px 14px',
-                      background: 'none', border: 'none', textAlign: 'left',
-                      cursor: 'pointer', fontSize: '13px', color: '#1f2937',
-                      borderBottom: '1px solid #f9fafb'
-                    }}
+                  <button key={p.id} onClick={() => { setShowAddTabPopup(false); openProject(p.id); }}
+                    style={{ display: 'block', width: '100%', padding: '10px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '13px', color: '#1f2937', borderBottom: '1px solid #f9fafb' }}
                     onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
                     onMouseLeave={e => e.currentTarget.style.background = 'none'}>
                     <div style={{ fontWeight: '500', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
@@ -1208,11 +1289,20 @@ function App() {
         </>
       )}
 
-      {/* Toolbar */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: '#e5e7eb', padding: '10px 15px', borderBottom: '1px solid #d1d5db', gap: '10px' }}>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowProjectMenu(v => !v)} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }} title="Quản lý project">📁 Project</button>
+      {/* TOOLBAR */}
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        justifyContent: isMobile ? 'flex-start' : 'space-between',
+        background: '#e5e7eb',
+        padding: isMobile ? '8px 10px' : '10px 15px',
+        borderBottom: '1px solid #d1d5db', gap: '10px',
+        flexWrap: isMobile ? 'nowrap' : 'wrap',
+        overflowX: isMobile ? 'auto' : 'visible',
+        WebkitOverflowScrolling: 'touch'
+      }}>
+        <div style={{ display: 'flex', gap: isMobile ? '8px' : '10px', alignItems: 'center', flexWrap: isMobile ? 'nowrap' : 'wrap', flexShrink: 0 }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button onClick={() => setShowProjectMenu(v => !v)} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', whiteSpace: 'nowrap' }} title="Quản lý project">📁 Project</button>
             {showProjectMenu && (
               <>
                 <div onClick={() => setShowProjectMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
@@ -1229,26 +1319,26 @@ function App() {
               </>
             )}
           </div>
-          <h2 style={{ fontSize: '18px', color: '#1f2937', margin: 0, fontWeight: '700' }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
-          <select value={`${canvasSize.width}x${canvasSize.height}`} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); setCanvasSize({ width: w, height: h }); }} style={{ padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold' }}>
+          <h2 style={{ fontSize: '18px', color: '#1f2937', margin: 0, fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0 }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
+          <select value={`${canvasSize.width}x${canvasSize.height}`} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); setCanvasSize({ width: w, height: h }); }} style={{ padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}>
             <option value="800x600">800x600</option>
             <option value="1080x1080">1080x1080</option>
             <option value="1080x1920">1080x1920 (Story)</option>
             <option value="1920x1080">1920x1080 (Youtube)</option>
             <option value="1200x630">1200x630 (FB)</option>
           </select>
-          <div style={{ display: 'flex', gap: '5px', borderLeft: '1px solid #ccc', paddingLeft: '10px' }}>
-            <button style={{ border: '1px solid #ccc', background: currentTool === 'brush' ? '#3b82f6' : '#fff', color: currentTool === 'brush' ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => { setCurrentTool('brush'); setIsRulerMode(false); }}>🖌️ Bút</button>
-            <button style={{ border: '1px solid #ccc', background: isRulerMode ? '#10b981' : '#fff', color: isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => { setIsRulerMode(true); setCurrentTool('select'); }}>📏 Thước</button>
-            <button style={{ border: '1px solid #ccc', background: currentTool === 'select' && !isRulerMode ? '#3b82f6' : '#fff', color: currentTool === 'select' && !isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => { setCurrentTool('select'); setIsRulerMode(false); }}>🖱️ Chọn</button>
+          <div style={{ display: 'flex', gap: '5px', borderLeft: '1px solid #ccc', paddingLeft: '10px', flexShrink: 0 }}>
+            <button style={{ border: '1px solid #ccc', background: currentTool === 'brush' ? '#3b82f6' : '#fff', color: currentTool === 'brush' ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => { setCurrentTool('brush'); setIsRulerMode(false); }}>🖌️ Bút</button>
+            <button style={{ border: '1px solid #ccc', background: isRulerMode ? '#10b981' : '#fff', color: isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => { setIsRulerMode(true); setCurrentTool('select'); }}>📏 Thước</button>
+            <button style={{ border: '1px solid #ccc', background: currentTool === 'select' && !isRulerMode ? '#3b82f6' : '#fff', color: currentTool === 'select' && !isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => { setCurrentTool('select'); setIsRulerMode(false); }}>🖱️ Chọn</button>
           </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '1px solid #ccc', paddingLeft: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '1px solid #ccc', paddingLeft: '10px', flexWrap: 'nowrap', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Màu:</label>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Màu:</label>
               <input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} style={{ width: '25px', height: '25px', padding: 0, border: 'none' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', position: 'relative' }}>
-              <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
                 Độ dày
                 <span onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)} style={{ color: '#3b82f6', borderRadius: '50%', border: '1px solid #3b82f6', width: '14px', height: '14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', cursor: 'help' }}>i</span>
               </label>
@@ -1258,18 +1348,19 @@ function App() {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <button onClick={saveProject} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333' }} title="Lưu file thiết kế (.json)">💾 Lưu Dự Án</button>
-          <button onClick={() => fileInputRef.current.click()} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333' }} title="Mở file thiết kế (.json)">📂 Mở Dự Án</button>
+        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0 }}>
+          <button onClick={saveProject} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333', whiteSpace: 'nowrap' }} title="Lưu file thiết kế (.json)">💾 Lưu Dự Án</button>
+          <button onClick={() => fileInputRef.current.click()} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333', whiteSpace: 'nowrap' }} title="Mở file thiết kế (.json)">📂 Mở Dự Án</button>
           <input type="file" accept=".json" ref={fileInputRef} onChange={loadProject} style={{ display: 'none' }} />
           <button onClick={handleUndo} disabled={historyStep <= 0} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: historyStep <= 0 ? 'not-allowed' : 'pointer' }}>↩</button>
           <button onClick={handleRedo} disabled={historyStep >= history.length - 1} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: historyStep >= history.length - 1 ? 'not-allowed' : 'pointer' }}>↪</button>
-          <button onClick={handleReset} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ef4444', background: '#fee2e2', color: '#ef4444' }}>Xoá hết</button>
-          <button className="btn btn-success" onClick={exportPng} style={{ padding: '5px 12px', fontSize: '12px' }}>Tải Ảnh PNG</button>
+          <button onClick={handleReset} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ef4444', background: '#fee2e2', color: '#ef4444', whiteSpace: 'nowrap' }}>Xoá hết</button>
+          <button className="btn btn-success" onClick={exportPng} style={{ padding: '5px 12px', fontSize: '12px', whiteSpace: 'nowrap' }}>Tải Ảnh PNG</button>
         </div>
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative', minHeight: 0 }}>
+        {/* LEFT PANEL */}
         <div style={{ width: isLeftOpen ? (isMobile ? '100%' : '250px') : '0px', overflow: 'hidden', transition: 'width 0.3s', background: 'white', position: 'absolute', left: 0, zIndex: 100, height: '100%', borderRight: isLeftOpen ? '1px solid #ddd' : 'none', boxShadow: isLeftOpen ? '5px 0 15px rgba(0,0,0,0.1)' : 'none' }}>
           <div style={{ padding: '15px', overflowY: 'auto', height: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -1316,9 +1407,21 @@ function App() {
           <button onClick={() => setIsLeftOpen(!isLeftOpen)} style={{ position: 'absolute', left: isLeftOpen ? '250px' : '0px', top: '50%', transform: 'translateY(-50%)', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderLeft: 'none', borderRadius: '0 5px 5px 0', padding: '10px 5px', cursor: 'pointer', transition: 'left 0.3s' }}>{isLeftOpen ? '◀' : '▶'}</button>
         )}
 
+        {/* CANVAS */}
         <div ref={mainAreaRef} className="main-area" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#e5e7eb', touchAction: 'none', minHeight: 0 }}>
           {!isLeftOpen && (
             <button onClick={() => setIsLeftOpen(true)} style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>📚</button>
+          )}
+
+          {selectedId && isMobile && (
+            <button onClick={() => setSelectedId(null)} title="Bỏ chọn"
+              style={{
+                position: 'absolute', top: '10px', right: '10px',
+                background: 'white', border: '1px solid #d1d5db', borderRadius: '50%',
+                width: '40px', height: '40px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                zIndex: 20, fontSize: '16px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0
+              }}>✕</button>
           )}
 
           <Stage
@@ -1348,12 +1451,12 @@ function App() {
               {elements.map(renderShape)}
               {isRulerMode && tempLine && <Line x={tempLine.x} y={tempLine.y} points={tempLine.points} stroke={brushColor} strokeWidth={brushSize} dash={[10, 5]} />}
               <Transformer ref={trRef} keepRatio={['circle', 'star', 'text', 'path', 'icon', 'polygon', 'arrow'].includes(selectedEl?.type)}
-                anchorSize={22} anchorCornerRadius={10} anchorStroke="#3b82f6" anchorStrokeWidth={2} anchorFill="#ffffff" borderStroke="#3b82f6" borderStrokeWidth={2} rotateAnchorOffset={40} ignoreStroke={true}
+                anchorSize={isMobile ? 28 : 22} anchorCornerRadius={isMobile ? 14 : 10} anchorStroke="#3b82f6" anchorStrokeWidth={2} anchorFill="#ffffff" borderStroke="#3b82f6" borderStrokeWidth={2} rotateAnchorOffset={isMobile ? 48 : 40} ignoreStroke={true}
                 boundBoxFunc={(oldBox, newBox) => { if (newBox.width < 20 || newBox.height < 20) return oldBox; return newBox; }} />
             </Layer>
           </Stage>
 
-          {/* Zoom popup */}
+          {/* ZOOM POPUP */}
           {zoomPopupPos.y !== null && (
             <div
               onMouseDown={handleZoomPopupDragStart}
@@ -1415,6 +1518,36 @@ function App() {
           {renderProperties()}
         </div>
       </div>
+
+      {/* Modal Prompt */}
+      {promptState && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '10px', padding: '20px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 15px', fontSize: '16px', color: '#1f2937' }}>{promptState.title}</h3>
+            <input autoFocus type="text" value={promptState.value}
+              onChange={(e) => setPromptState({ ...promptState, value: e.target.value })}
+              onKeyDown={(e) => { if (e.key === 'Enter') handlePromptConfirm(); if (e.key === 'Escape') handlePromptCancel(); }}
+              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', boxSizing: 'border-box', outline: 'none' }} />
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={handlePromptCancel} style={{ padding: '8px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Hủy</button>
+              <button onClick={handlePromptConfirm} style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirm */}
+      {confirmState && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '10px', padding: '20px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: '0 0 15px', fontSize: '15px', color: '#1f2937', lineHeight: 1.5 }}>{confirmState.title}</h3>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={handleConfirmNo} style={{ padding: '8px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Hủy</button>
+              <button onClick={handleConfirmYes} style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Xác nhận</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isBuilderOpen && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
