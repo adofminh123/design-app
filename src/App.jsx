@@ -40,12 +40,9 @@ const getIconPaths = (IconComponent) => {
     let paths = [];
     svg.querySelectorAll('path, circle, line, rect, polygon, polyline, ellipse').forEach(node => {
       if (node.tagName === 'path') {
-        let d = node.getAttribute('d') || "";
-        // FIX TRIỆT ĐỂ: Chèn thêm lệnh 'l' (line) cho tọa độ tiếp theo để không bị kéo dài ngoằng
-        if (d.trim().startsWith('m')) {
-          d = d.trim().replace(/^m\s*([\d.-]+)[\s,]+([\d.-]+)/i, 'M $1 $2 l');
-        }
-        paths.push(d.trim());
+        const d = node.getAttribute('d') || "";
+        // Lấy nguyên bản d, Konva hoàn toàn có thể xử lý các lệnh relative (m, a, l...)
+        if (d.trim()) paths.push(d.trim());
       } else if (node.tagName === 'circle') {
         const cx = Number(node.getAttribute('cx') || 0); const cy = Number(node.getAttribute('cy') || 0); const r = Number(node.getAttribute('r') || 0);
         paths.push(`M ${cx-r} ${cy} a ${r} ${r} 0 1 0 ${r*2} 0 a ${r} ${r} 0 1 0 -${r*2} 0`);
