@@ -129,6 +129,8 @@ const clampStagePos = (pos, mainAreaSize, canvasSize, stageScale) => {
   };
 };
 
+const ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+
 function App() {
   const [view, setView] = useState('lobby');
   const [projects, setProjects] = useState(initLegacyProject);
@@ -141,11 +143,13 @@ function App() {
   const projectBtnRef = useRef(null);
   const [projectMenuPos, setProjectMenuPos] = useState({ left: 0, top: 0 });
 
-  // ✅ Fix: hint khi select shape trên mobile
   const [mobileDragHint, setMobileDragHint] = useState(false);
   const mobileHintTimeoutRef = useRef(null);
 
-  // Custom modal states
+  // ✅ Refs phục vụ arrow-key nudge (tránh spam history)
+  const elementsRef = useRef(elements);
+  const arrowNudgePendingRef = useRef(false);
+
   const promptResolveRef = useRef(null);
   const confirmResolveRef = useRef(null);
   const [promptState, setPromptState] = useState(null);
@@ -230,6 +234,9 @@ function App() {
     link.href = 'https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Roboto:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&family=Anton&family=Bebas+Neue&family=Dancing+Script:ital,wght@0,400;0,700;1,400;1,700&display=swap';
     document.head.appendChild(link);
   }, []);
+
+  // ✅ Sync ref để keyup luôn có elements mới nhất
+  useEffect(() => { elementsRef.current = elements; }, [elements]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -406,7 +413,26 @@ function App() {
           if (el && el.type === 'text' && el.text && el.text.length > 0) { updateElement(selectedId, { text: '' }); return; }
         }
         deleteSelected();
-      } else if (e.key === 'Escape') {
+      }
+      // ✅ Arrow keys: nhích shape (chuẩn ngành desktop)
+      else if (ARROW_KEYS.includes(e.key)) {
+        if (!selectedId) return;
+        e.preventDefault();
+        // Đánh dấu có nudge đang chờ để keyup lưu history 1 lần
+        arrowNudgePendingRef.current = true;
+        const step = e.shiftKey ? 10 : 1;
+        let dx = 0, dy = 0;
+        if (e.key === 'ArrowUp') dy = -step;
+        if (e.key === 'ArrowDown') dy = step;
+        if (e.key === 'ArrowLeft') dx = -step;
+        if (e.key === 'ArrowRight') dx = step;
+        // Cập nhật realtime KHÔNG lưu history (tránh spam khi giữ phím)
+        setElements(prev => prev.map(item => item.id === selectedId
+          ? { ...item, x: (item.x || 0) + dx, y: (item.y || 0) + dy }
+          : item
+        ));
+      }
+      else if (e.key === 'Escape') {
         e.preventDefault();
         if (promptState) { handlePromptCancel(); return; }
         if (confirmState) { handleConfirmNo(); return; }
@@ -417,11 +443,27 @@ function App() {
         else if (selectedId) setSelectedId(null);
       }
     };
+
+    // ✅ Keyup: lưu history 1 lần khi nhả phím arrow (không spam)
+    const handleKeyUp = (e) => {
+      if (ARROW_KEYS.includes(e.key) && arrowNudgePendingRef.current) {
+        const currentElements = elementsRef.current;
+        const newHistory = history.slice(0, historyStep + 1);
+        newHistory.push(currentElements);
+        setHistory(newHistory);
+        setHistoryStep(newHistory.length - 1);
+        arrowNudgePendingRef.current = false;
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, [historyStep, history, selectedId, elements, currentTool, isRulerMode, showAddTabPopup, showProjectMenu, promptState, confirmState]);
 
-  // ✅ Fix: hiện hint "chạm lần 2 để kéo" khi select trên mobile
   useEffect(() => {
     if (!isMobile) return;
     if (!selectedId) { setMobileDragHint(false); return; }
@@ -866,8 +908,8 @@ function App() {
     } : {};
     const commonProps = {
       id: el.id, x: el.x || 0, y: el.y || 0, rotation: el.rotation || 0,
-      // ✅ Fix: chỉ shape ĐÃ CHỌN mới draggable (chuẩn ngành, tránh accidental drag + pinch conflict)
-      draggable: currentTool === 'select' && !isRulerMode && selectedId === el.id,
+      // ✅ FIX DESKTOP: 1-step (luôn draggable) | Mobile: 2-step (chỉ shape đã chọn mới draggable)
+      draggable: currentTool === 'select' && !isRulerMode && (!isMobile || selectedId === el.id),
       opacity: el.opacity ?? 1, ...shadowProps,
       onMouseDown: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
       onTap: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
@@ -1474,15 +1516,13 @@ function App() {
               }}>✕</button>
           )}
 
-          {/* ✅ Hint nhỏ "chạm lần 2 để kéo" trên mobile */}
           {isMobile && mobileDragHint && selectedId && (
             <div style={{
               position: 'absolute', top: '60px', left: '50%', transform: 'translateX(-50%)',
               background: 'rgba(31,41,55,0.9)', color: 'white', padding: '8px 14px',
               borderRadius: '20px', fontSize: '12px', fontWeight: '500',
               boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 21,
-              pointerEvents: 'none', whiteSpace: 'nowrap',
-              animation: 'fadeInOut 1.8s ease-in-out'
+              pointerEvents: 'none', whiteSpace: 'nowrap'
             }}>
               👆 Chạm lần 2 để kéo
             </div>
