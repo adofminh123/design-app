@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Stage, Layer, Text, Image as KonvaImage, Rect, Circle, Star, RegularPolygon, Arrow, Path, Line, Transformer } from 'react-konva';
+import { Stage, Layer, Group, Text, Image as KonvaImage, Rect, Circle, Star, RegularPolygon, Arrow, Path, Line, Transformer } from 'react-konva';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { v4 as uuidv4 } from 'uuid';
 import useImage from 'use-image';
@@ -699,21 +699,28 @@ function App() {
       onTransformEnd: (e) => handleTransformEnd(e, el),
     };
 
-    // RENDER ICON CHUẨN BẰNG PATH
+    // RENDER ICON CHUẨN BẰNG PATH (ĐÃ FIX LỖI GỘP PATH)
     if (el.type === 'icon') {
       return (
-        <Path
+        <Group
           key={el.id}
           {...commonProps}
-          data={el.data.join(' ')}
-          stroke={el.stroke}
-          strokeWidth={el.strokeWidth}
-          fill={el.fill}
           scaleX={el.scaleX || 1}
           scaleY={el.scaleY || 1}
-          lineCap="round"
-          lineJoin="round"
-        />
+        >
+          {el.data.map((pathData, index) => (
+            <Path
+              key={index}
+              data={pathData}
+              stroke={el.stroke}
+              strokeWidth={el.strokeWidth}
+              fill={el.fill}
+              {...shadowProps}
+              lineCap="round"
+              lineJoin="round"
+            />
+          ))}
+        </Group>
       );
     }
 
