@@ -41,7 +41,6 @@ const getIconPaths = (IconComponent) => {
     svg.querySelectorAll('path, circle, line, rect, polygon, polyline, ellipse').forEach(node => {
       if (node.tagName === 'path') {
         const d = node.getAttribute('d') || "";
-        // Lấy nguyên bản d, Konva hoàn toàn có thể xử lý các lệnh relative (m, a, l...)
         if (d.trim()) paths.push(d.trim());
       } else if (node.tagName === 'circle') {
         const cx = Number(node.getAttribute('cx') || 0); const cy = Number(node.getAttribute('cy') || 0); const r = Number(node.getAttribute('r') || 0);
@@ -80,6 +79,17 @@ const getInitialElements = () => {
 
 const getInitialCustomShapes = () => {
   try { return JSON.parse(localStorage.getItem('custom_shapes')) || []; } catch (e) { return []; }
+};
+
+// ✅ FIX #1: Helper toggle font style (Bold + Italic kết hợp được)
+const toggleFontStyle = (el, style) => {
+  const current = el.fontStyle || 'normal';
+  const styles = current.split(' ').filter(s => s && s !== 'normal');
+  const idx = styles.indexOf(style);
+  if (idx >= 0) styles.splice(idx, 1);
+  else styles.push(style);
+  styles.sort((a, b) => (a === 'italic' ? -1 : b === 'italic' ? 1 : 0));
+  return styles.length === 0 ? 'normal' : styles.join(' ');
 };
 
 function App() {
@@ -164,7 +174,6 @@ function App() {
     localStorage.setItem('canvas_size', JSON.stringify(canvasSize));
   }, [elements, bgColor, customShapes, canvasSize]);
 
-  // KHỞI TẠO VỊ TRÍ BAN ĐẦU (Căn giữa Canvas)
   useEffect(() => {
     if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
       setStagePos({
@@ -196,9 +205,13 @@ function App() {
       } else if (e.key === 'Escape' || e.key === 'Backspace') {
         if (!selectedId) return;
         e.preventDefault();
+        // ✅ FIX #5: chỉ xoá text khi có nội dung, nếu rỗng thì xoá element
         if (e.key === 'Backspace') {
           const el = elements.find(item => item.id === selectedId);
-          if (el && el.type === 'text') { updateElement(selectedId, { text: '' }); return; }
+          if (el && el.type === 'text' && el.text && el.text.length > 0) { 
+            updateElement(selectedId, { text: '' }); 
+            return; 
+          }
         }
         deleteSelected();
       }
@@ -305,7 +318,6 @@ function App() {
       return;
     }
 
-    // VẼ BẰNG 1 NGÓN TAY
     const stage = e.target.getStage();
     const point = stage.getRelativePointerPosition();
 
@@ -416,12 +428,26 @@ function App() {
       };
       reader.readAsText(file);
     } else if (file.type.startsWith('image/')) {
+      // ✅ FIX #2: giữ tỷ lệ ảnh khi thả
       const reader = new FileReader();
-      const center = getCenterPosition();
       reader.onload = () => {
-        const newEl = { id: uuidv4(), type: 'image', x: center.x, y: center.y, width: 250, height: 250, src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
-        saveToHistory([...elements, newEl]); setCurrentTool('select');
-        if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
+        const img = new Image();
+        img.onload = () => {
+          const center = getCenterPosition();
+          const maxDim = 300;
+          let w = img.width, h = img.height;
+          if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } }
+          else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } }
+          const newEl = { 
+            id: uuidv4(), type: 'image', 
+            x: center.x - w / 2, y: center.y - h / 2,
+            width: w, height: h, 
+            src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' 
+          };
+          saveToHistory([...elements, newEl]); setCurrentTool('select');
+          if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
+        };
+        img.src = reader.result;
       };
       reader.readAsDataURL(file);
     }
@@ -429,14 +455,30 @@ function App() {
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0]; if (!file) return;
+    // ✅ FIX #2: giữ tỷ lệ ảnh
     const reader = new FileReader();
-    const center = getCenterPosition();
     reader.onload = () => {
-      const newEl = { id: uuidv4(), type: 'image', x: center.x, y: center.y, width: 250, height: 250, src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
-      saveToHistory([...elements, newEl]); setCurrentTool('select');
-      if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
+      const img = new Image();
+      img.onload = () => {
+        const center = getCenterPosition();
+        const maxDim = 300;
+        let w = img.width, h = img.height;
+        if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } }
+        else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } }
+        const newEl = { 
+          id: uuidv4(), type: 'image', 
+          x: center.x - w / 2, y: center.y - h / 2,
+          width: w, height: h, 
+          src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' 
+        };
+        saveToHistory([...elements, newEl]); 
+        setCurrentTool('select');
+        if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
+      };
+      img.src = reader.result;
     };
     reader.readAsDataURL(file);
+    e.target.value = null;
   };
 
   const resizeImage = (dataUrl, maxSize) => {
@@ -506,6 +548,7 @@ function App() {
 
   const addBasicShape = (type) => {
     setCurrentTool('select');
+    setIsRulerMode(false); // ✅ FIX #3: tự thoát ruler mode
     const center = getCenterPosition();
     const base = { id: uuidv4(), x: center.x, y: center.y, rotation: 0, scaleX: 1, scaleY: 1, stroke: '#000000', strokeWidth: 0, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     let newEl = {};
@@ -525,6 +568,7 @@ function App() {
 
   const addCustomShape = (shapeTemplate) => {
     setCurrentTool('select');
+    setIsRulerMode(false);
     const center = getCenterPosition();
     const newEl = { ...shapeTemplate, id: uuidv4(), x: center.x, y: center.y, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]); 
@@ -548,6 +592,7 @@ function App() {
 
   const addPathShape = (pathData) => {
     setCurrentTool('select');
+    setIsRulerMode(false);
     const center = getCenterPosition();
     const newEl = { id: uuidv4(), type: 'path', x: center.x, y: center.y, rotation: 0, data: [pathData], stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent', scaleX: 2.5, scaleY: 2.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]); 
@@ -557,6 +602,7 @@ function App() {
 
   const addLucideIcon = (iconName) => {
     setCurrentTool('select');
+    setIsRulerMode(false);
     const paths = getIconPaths(LucideIcons[iconName]);
     
     if (paths.length === 0) {
@@ -699,7 +745,6 @@ function App() {
       onTransformEnd: (e) => handleTransformEnd(e, el),
     };
 
-    // RENDER ICON CHUẨN BẰNG PATH (ĐÃ FIX LỖI GỘP PATH)
     if (el.type === 'icon') {
       return (
         <Group
@@ -791,7 +836,17 @@ function App() {
                 <div style={{ marginBottom: '15px' }}>
                   <div className="input-group" style={{ marginBottom: '10px' }}>
                     <label style={{ fontSize: '13px' }}>Nội dung chữ:</label>
-                    <input type="text" value={selectedEl.text} onChange={(e) => updateElement(selectedId, { text: e.target.value })} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }} />
+                    {/* ✅ FIX #7: cập nhật realtime, chỉ lưu history khi blur */}
+                    <input 
+                      type="text" 
+                      value={selectedEl.text} 
+                      onChange={(e) => {
+                        const newText = e.target.value;
+                        setElements(elements.map(el => el.id === selectedId ? { ...el, text: newText } : el));
+                      }} 
+                      onBlur={() => saveToHistory(elements)}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }} 
+                    />
                   </div>
                   <div className="input-group" style={{ marginBottom: '10px' }}>
                     <label style={{ fontSize: '13px' }}>Font chữ:</label>
@@ -803,9 +858,10 @@ function App() {
                       <option value="Dancing Script">Dancing Script</option>
                     </select>
                   </div>
+                  {/* ✅ FIX #1: Bold + Italic kết hợp được */}
                   <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
-                    <button className="btn" style={{ flex: 1, fontWeight: 'bold', background: selectedEl.fontStyle?.includes('bold') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: selectedEl.fontStyle?.includes('bold') ? 'normal' : 'bold' })}>B</button>
-                    <button className="btn" style={{ flex: 1, fontStyle: 'italic', background: selectedEl.fontStyle?.includes('italic') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: selectedEl.fontStyle?.includes('italic') ? 'normal' : 'italic' })}>I</button>
+                    <button className="btn" style={{ flex: 1, fontWeight: 'bold', background: selectedEl.fontStyle?.includes('bold') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'bold') })}>B</button>
+                    <button className="btn" style={{ flex: 1, fontStyle: 'italic', background: selectedEl.fontStyle?.includes('italic') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'italic') })}>I</button>
                     <button className="btn" style={{ flex: 1, textDecoration: 'underline', background: selectedEl.textDecoration === 'underline' ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { textDecoration: selectedEl.textDecoration === 'underline' ? '' : 'underline' })}>U</button>
                   </div>
                 </div>
@@ -975,7 +1031,6 @@ function App() {
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
         
-        {/* LEFT SIDEBAR */}
         <div 
           style={{ 
             width: isLeftOpen ? (isMobile ? '100%' : '250px') : '0px', 
@@ -1026,7 +1081,7 @@ function App() {
 
             <div style={{ padding: '10px', border: '1px dashed #ccc', borderRadius: '6px', marginBottom: '15px' }}>
               <label style={{ fontSize: '13px', fontWeight: '600', marginBottom: '5px', display: 'block' }}>Tải ảnh lên:</label>
-              <input type="file" onChange={handleImageUpload} style={{ fontSize: '12px', width: '100%' }} />
+              <input type="file" accept="image/*" onChange={handleImageUpload} style={{ fontSize: '12px', width: '100%' }} />
             </div>
 
             <div className="input-group">
@@ -1036,7 +1091,6 @@ function App() {
           </div>
         </div>
 
-        {/* NÚT TOGGLE LEFT */}
         {!isMobile && (
           <button 
             onClick={() => setIsLeftOpen(!isLeftOpen)}
@@ -1046,7 +1100,6 @@ function App() {
           </button>
         )}
 
-        {/* MAIN CANVAS AREA */}
         <div ref={mainAreaRef} className="main-area" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#e5e7eb', touchAction: 'none' }}>
           
           {!isLeftOpen && (
@@ -1096,16 +1149,16 @@ function App() {
               {elements.map(renderShape)}
               {isRulerMode && tempLine && <Line x={tempLine.x} y={tempLine.y} points={tempLine.points} stroke={brushColor} strokeWidth={brushSize} dash={[10, 5]} />}
               
+              {/* ✅ FIX #4: thêm 'arrow' vào keepRatio để mũi tên không bị méo */}
               <Transformer 
                 ref={trRef} 
-                keepRatio={['circle', 'star', 'text', 'path', 'icon', 'polygon'].includes(selectedEl?.type)}
+                keepRatio={['circle', 'star', 'text', 'path', 'icon', 'polygon', 'arrow'].includes(selectedEl?.type)}
                 anchorSize={22} anchorCornerRadius={10} anchorStroke="#3b82f6" anchorStrokeWidth={2} anchorFill="#ffffff" borderStroke="#3b82f6" borderStrokeWidth={2} rotateAnchorOffset={40} ignoreStroke={true} 
                 boundBoxFunc={(oldBox, newBox) => { if (newBox.width < 20 || newBox.height < 20) return oldBox; return newBox; }} 
               />
             </Layer>
           </Stage>
 
-          {/* THANH ZOOM */}
           <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'white', padding: '5px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', display: 'flex', gap: '5px', alignItems: 'center', zIndex: 10 }}>
             <button onClick={() => setStageScale(s => Math.max(0.1, s - 0.1))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>-</button>
             <span style={{ fontSize: '12px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{Math.round(stageScale * 100)}%</span>
@@ -1120,7 +1173,6 @@ function App() {
           </div>
         </div>
 
-        {/* NÚT TOGGLE RIGHT */}
         {selectedId && selectedEl && currentTool === 'select' && !isRulerMode && (
           <button 
             onClick={() => setIsRightOpen(!isRightOpen)}
@@ -1151,7 +1203,6 @@ function App() {
           </button>
         )}
 
-        {/* RIGHT SIDEBAR (MOBILE: BOTTOM SHEET 40% / DESKTOP: OVERLAY) */}
         <div 
           style={{ 
             position: isMobile ? 'fixed' : 'absolute', 
