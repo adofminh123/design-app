@@ -138,8 +138,11 @@ function App() {
   const [showAddTabPopup, setShowAddTabPopup] = useState(false);
   const addTabBtnRef = useRef(null);
   const [addTabPopupPos, setAddTabPopupPos] = useState({ left: 0, top: 0 });
+  // ✅ Fix: nút Project popup ngoài toolbar
+  const projectBtnRef = useRef(null);
+  const [projectMenuPos, setProjectMenuPos] = useState({ left: 0, top: 0 });
 
-  // ✅ Custom modal states (thay prompt/confirm)
+  // Custom modal states
   const promptResolveRef = useRef(null);
   const confirmResolveRef = useRef(null);
   const [promptState, setPromptState] = useState(null);
@@ -251,8 +254,12 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // ✅ Đóng CẢ 2 popup khi resize
   useEffect(() => {
-    const onResize = () => setShowAddTabPopup(false);
+    const onResize = () => {
+      setShowAddTabPopup(false);
+      setShowProjectMenu(false);
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -998,6 +1005,21 @@ function App() {
     setShowAddTabPopup(true);
   };
 
+  // ✅ Fix: nút Project dùng position fixed
+  const openProjectMenu = () => {
+    if (showProjectMenu) { setShowProjectMenu(false); return; }
+    if (projectBtnRef.current) {
+      const rect = projectBtnRef.current.getBoundingClientRect();
+      const POPUP_W = 230;
+      const PADDING = 8;
+      let left = rect.left;
+      if (left + POPUP_W > window.innerWidth - PADDING) left = window.innerWidth - POPUP_W - PADDING;
+      if (left < PADDING) left = PADDING;
+      setProjectMenuPos({ left, top: rect.bottom + 6 });
+    }
+    setShowProjectMenu(true);
+  };
+
   const availableProjects = projects.filter(p => !openProjectIds.includes(p.id));
 
   const renderProperties = () => {
@@ -1166,7 +1188,6 @@ function App() {
           </div>
         </div>
 
-        {/* Modal Prompt */}
         {promptState && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
             <div style={{ background: 'white', borderRadius: '10px', padding: '20px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
@@ -1183,7 +1204,6 @@ function App() {
           </div>
         )}
 
-        {/* Modal Confirm */}
         {confirmState && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
             <div style={{ background: 'white', borderRadius: '10px', padding: '20px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
@@ -1246,6 +1266,7 @@ function App() {
           }}>+</button>
       </div>
 
+      {/* Popup thêm tab */}
       {showAddTabPopup && (
         <>
           <div onClick={() => setShowAddTabPopup(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
@@ -1289,6 +1310,28 @@ function App() {
         </>
       )}
 
+      {/* ✅ POPUP PROJECT — ngoài toolbar, position fixed */}
+      {showProjectMenu && (
+        <>
+          <div onClick={() => setShowProjectMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+          <div style={{
+            position: 'fixed', top: projectMenuPos.top, left: projectMenuPos.left,
+            background: 'white', border: '1px solid #ddd', borderRadius: '8px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)', minWidth: '230px',
+            zIndex: 999, overflow: 'hidden'
+          }}>
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}>
+              <div style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Project hiện tại</div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1f2937', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {projects.find(p => p.id === currentProjectId)?.name || 'Untitled'}
+              </div>
+            </div>
+            <button onClick={() => { setShowProjectMenu(false); handleExitProject(); }} style={PROJECT_MENU_ITEM_STYLE}>🚪 Thoát project</button>
+            <button onClick={handleNewTabProject} style={PROJECT_MENU_ITEM_STYLE}>🆕 New tab project</button>
+          </div>
+        </>
+      )}
+
       {/* TOOLBAR */}
       <div style={{
         display: 'flex', alignItems: 'center',
@@ -1301,24 +1344,20 @@ function App() {
         WebkitOverflowScrolling: 'touch'
       }}>
         <div style={{ display: 'flex', gap: isMobile ? '8px' : '10px', alignItems: 'center', flexWrap: isMobile ? 'nowrap' : 'wrap', flexShrink: 0 }}>
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <button onClick={() => setShowProjectMenu(v => !v)} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', whiteSpace: 'nowrap' }} title="Quản lý project">📁 Project</button>
-            {showProjectMenu && (
-              <>
-                <div onClick={() => setShowProjectMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '6px', background: 'white', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', minWidth: '230px', zIndex: 999, overflow: 'hidden' }}>
-                  <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}>
-                    <div style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Project hiện tại</div>
-                    <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1f2937', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {projects.find(p => p.id === currentProjectId)?.name || 'Untitled'}
-                    </div>
-                  </div>
-                  <button onClick={() => { setShowProjectMenu(false); handleExitProject(); }} style={PROJECT_MENU_ITEM_STYLE}>🚪 Thoát project</button>
-                  <button onClick={handleNewTabProject} style={PROJECT_MENU_ITEM_STYLE}>🆕 New tab project</button>
-                </div>
-              </>
-            )}
-          </div>
+          {/* ✅ Nút Project — chỉ button, popup render ngoài */}
+          <button
+            ref={projectBtnRef}
+            onClick={openProjectMenu}
+            style={{
+              padding: '5px 10px', fontSize: '12px', fontWeight: 'bold',
+              borderRadius: '4px', border: '1px solid #ccc',
+              background: showProjectMenu ? '#3b82f6' : '#fff',
+              color: showProjectMenu ? '#fff' : '#333',
+              display: 'flex', alignItems: 'center', gap: '5px',
+              cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
+            }}
+            title="Quản lý project">📁 Project</button>
+
           <h2 style={{ fontSize: '18px', color: '#1f2937', margin: 0, fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0 }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
           <select value={`${canvasSize.width}x${canvasSize.height}`} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); setCanvasSize({ width: w, height: h }); }} style={{ padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}>
             <option value="800x600">800x600</option>
