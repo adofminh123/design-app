@@ -81,7 +81,6 @@ const getInitialCustomShapes = () => {
   try { return JSON.parse(localStorage.getItem('custom_shapes')) || []; } catch (e) { return []; }
 };
 
-// ✅ FIX #1: Helper toggle font style (Bold + Italic kết hợp được)
 const toggleFontStyle = (el, style) => {
   const current = el.fontStyle || 'normal';
   const styles = current.split(' ').filter(s => s && s !== 'normal');
@@ -92,7 +91,6 @@ const toggleFontStyle = (el, style) => {
   return styles.length === 0 ? 'normal' : styles.join(' ');
 };
 
-// ✅ Project helpers
 const getProjectsList = () => {
   try { return JSON.parse(localStorage.getItem('projects')) || []; }
   catch { return []; }
@@ -130,11 +128,23 @@ const PROJECT_MENU_ITEM_STYLE = {
   cursor: 'pointer', fontSize: '13px', color: '#1f2937'
 };
 
+// ✅ Helper: clamp stagePos để canvas không bị "biến mất" khỏi viewport
+const clampStagePos = (pos, mainAreaSize, canvasSize, stageScale) => {
+  const scaledW = canvasSize.width * stageScale;
+  const scaledH = canvasSize.height * stageScale;
+  const minVisibleX = Math.min(80, scaledW * 0.25);
+  const minVisibleY = Math.min(80, scaledH * 0.25);
+  return {
+    x: Math.max(minVisibleX - scaledW, Math.min(mainAreaSize.width - minVisibleX, pos.x)),
+    y: Math.max(minVisibleY - scaledH, Math.min(mainAreaSize.height - minVisibleY, pos.y))
+  };
+};
+
 function App() {
-  // ✅ Project management state
   const [view, setView] = useState('lobby');
   const [projects, setProjects] = useState(initLegacyProject);
   const [currentProjectId, setCurrentProjectId] = useState(null);
+  const [openProjectIds, setOpenProjectIds] = useState([]); // ✅ Taskbar tabs
   const [showProjectMenu, setShowProjectMenu] = useState(false);
 
   const [elements, setElements] = useState(getInitialElements);
@@ -158,8 +168,10 @@ function App() {
   const mainAreaRef = useRef(null);
 
   const isCanvasDragging = useRef(false);
+  const userHasMovedCanvas = useRef(false);
+  const lastCanvasSizeRef = useRef({ width: 800, height: 600 });
 
-  // ✅ FIX #1: Inject Google Fonts với italic variants
+  // Inject Google Fonts với italic variants
   useEffect(() => {
     if (document.getElementById('pixelcraft-fonts')) return;
     const link = document.createElement('link');
@@ -169,7 +181,7 @@ function App() {
     document.head.appendChild(link);
   }, []);
 
-  // ✅ Load project từ URL (New tab)
+  // Load project từ URL (nếu có)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const projectId = params.get('project');
@@ -184,6 +196,7 @@ function App() {
       setHistory([project.elements || []]);
       setHistoryStep(0);
       setCurrentProjectId(projectId);
+      setOpenProjectIds([projectId]);
       setView('editor');
       window.history.replaceState({}, '', window.location.pathname);
     } catch { alert('Lỗi mở project'); }
@@ -241,12 +254,10 @@ function App() {
   const layerRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // ✅ Lưu custom shapes (global)
   useEffect(() => {
     localStorage.setItem('custom_shapes', JSON.stringify(customShapes));
   }, [customShapes]);
 
-  // ✅ Lưu vào project hiện tại
   useEffect(() => {
     if (!currentProjectId) return;
     const name = projects.find(p => p.id === currentProjectId)?.name || 'Untitled';
@@ -265,13 +276,24 @@ function App() {
     });
   }, [elements, bgColor, canvasSize, currentProjectId]);
 
+  // ✅ FIX: recenter khi canvasSize đổi; clamp khi viewport đổi
   useEffect(() => {
-    if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
+    if (mainAreaSize.width <= 0 || mainAreaSize.height <= 0) return;
+    const canvasChanged = lastCanvasSizeRef.current.width !== canvasSize.width ||
+                          lastCanvasSizeRef.current.height !== canvasSize.height;
+    lastCanvasSizeRef.current = canvasSize;
+
+    if (canvasChanged) userHasMovedCanvas.current = false;
+
+    if (!userHasMovedCanvas.current) {
       setStagePos({
         x: mainAreaSize.width / 2 - (canvasSize.width * stageScale) / 2,
         y: mainAreaSize.height / 2 - (canvasSize.height * stageScale) / 2
       });
+    } else {
+      setStagePos(prev => clampStagePos(prev, mainAreaSize, canvasSize, stageScale));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height]);
 
   useEffect(() => {
@@ -334,6 +356,7 @@ function App() {
     if (window.confirm("Bạn có chắc chắn muốn ĐẶT LẠI TỪ ĐẦU?")) {
       setElements([]); setBgColor('#ffffff'); setSelectedId(null); setCurrentTool('select'); setHistory([[]]); setHistoryStep(0);
       setStageScale(1);
+      userHasMovedCanvas.current = false;
       setStagePos({
         x: mainAreaSize.width / 2 - canvasSize.width / 2,
         y: mainAreaSize.height / 2 - canvasSize.height / 2
@@ -358,6 +381,7 @@ function App() {
 
     if (newScale < 0.1 || newScale > 5) return;
 
+    userHasMovedCanvas.current = true;
     setStageScale(newScale);
     setStagePos({
       x: pointerPosition.x - mousePointTo.x * newScale,
@@ -372,24 +396,18 @@ function App() {
 
     if (touch1 && touch2) {
       isDrawing.current = false;
-      if (stageRef.current.isDragging()) {
-        stageRef.current.stopDrag();
-      }
+      if (stageRef.current.isDragging()) stageRef.current.stopDrag();
 
       const p1 = { x: touch1.clientX, y: touch1.clientY };
       const p2 = { x: touch2.clientX, y: touch2.clientY };
       const newDist = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
       const newCenter = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
 
-      if (lastDist.current === 0) {
-        lastDist.current = newDist;
-        return;
-      }
+      if (lastDist.current === 0) { lastDist.current = newDist; return; }
 
       const scaleBy = newDist / lastDist.current;
       const oldScale = stageRef.current.scaleX();
       let newScale = oldScale * scaleBy;
-
       if (newScale < 0.1) newScale = 0.1;
       if (newScale > 5) newScale = 5;
 
@@ -398,6 +416,7 @@ function App() {
         y: (newCenter.y - stageRef.current.y()) / oldScale,
       };
 
+      userHasMovedCanvas.current = true;
       setStageScale(newScale);
       setStagePos({
         x: newCenter.x - pointerTo.x * newScale,
@@ -445,11 +464,9 @@ function App() {
       setTempLine({ x: pos.x, y: pos.y, points: [0, 0, 0, 0] });
       return;
     }
-    if (currentTool !== 'brush') {
-      return;
-    }
-    isDrawing.current = true;
+    if (currentTool !== 'brush') return;
 
+    isDrawing.current = true;
     const newLine = {
       id: uuidv4(), type: 'brush', points: [pos.x, pos.y], stroke: brushColor, strokeWidth: brushSize, tension: 0.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000'
     };
@@ -486,15 +503,8 @@ function App() {
     if (isDrawing.current) { isDrawing.current = false; saveToHistory(elements); }
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -512,9 +522,7 @@ function App() {
           if (parsed.canvasSize) setCanvasSize(parsed.canvasSize);
           setSelectedId(null);
           alert("Kéo thả dự án thành công!");
-        } catch (err) {
-          alert("File JSON không hợp lệ!");
-        }
+        } catch { alert("File JSON không hợp lệ!"); }
       };
       reader.readAsText(file);
     } else if (file.type.startsWith('image/')) {
@@ -569,21 +577,19 @@ function App() {
     e.target.value = null;
   };
 
-  const resizeImage = (dataUrl, maxSize) => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width, height = img.height;
-        if (width > height) { if (width > maxSize) { height *= maxSize / width; width = maxSize; } }
-        else { if (height > maxSize) { width *= maxSize / height; height = maxSize; } }
-        canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.9));
-      };
-      img.src = dataUrl;
-    });
-  };
+  const resizeImage = (dataUrl, maxSize) => new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width, height = img.height;
+      if (width > height) { if (width > maxSize) { height *= maxSize / width; width = maxSize; } }
+      else { if (height > maxSize) { width *= maxSize / height; height = maxSize; } }
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.9));
+    };
+    img.src = dataUrl;
+  });
 
   const handleRemoveBg = async () => {
     if (!selectedId) return;
@@ -600,7 +606,7 @@ function App() {
         try {
           const poofRes = await fetch('https://api.poof.bg/v1/remove', { method: 'POST', headers: { 'x-api-key': POOF_BG_API_KEYS[i] }, body: formData });
           if (poofRes.ok) { successBlob = await poofRes.blob(); break; }
-        } catch (e) {}
+        } catch {}
       }
       if (successBlob) {
         const reader = new FileReader();
@@ -615,22 +621,18 @@ function App() {
     let visibleW = mainAreaSize.width;
     let visibleH = mainAreaSize.height;
     if (isMobile && isRightOpen) { visibleH = visibleH * 0.6; }
-
-    const centerX = (visibleW / 2 - stagePos.x) / stageScale;
-    const centerY = (visibleH / 2 - stagePos.y) / stageScale;
-    return { x: centerX, y: centerY };
+    return {
+      x: (visibleW / 2 - stagePos.x) / stageScale,
+      y: (visibleH / 2 - stagePos.y) / stageScale
+    };
   };
 
   const centerSelected = () => {
     const node = layerRef.current.findOne('#' + selectedId);
     if (!node) return;
     const box = node.getClientRect({ relativeTo: layerRef.current });
-    const canvasCenterX = canvasSize.width / 2;
-    const canvasCenterY = canvasSize.height / 2;
-
-    const dx = canvasCenterX - (box.x + box.width / 2);
-    const dy = canvasCenterY - (box.y + box.height / 2);
-
+    const dx = canvasSize.width / 2 - (box.x + box.width / 2);
+    const dy = canvasSize.height / 2 - (box.y + box.height / 2);
     updateElement(selectedId, { x: node.x() + dx, y: node.y() + dy });
   };
 
@@ -692,12 +694,7 @@ function App() {
     setCurrentTool('select');
     setIsRulerMode(false);
     const paths = getIconPaths(LucideIcons[iconName]);
-
-    if (paths.length === 0) {
-      console.warn(`[Lỗi Icon] Không thể lấy SVG path cho icon: ${iconName}.`);
-      return;
-    }
-
+    if (paths.length === 0) return;
     const center = getCenterPosition();
     const newEl = { id: uuidv4(), type: 'icon', x: center.x, y: center.y, rotation: 0, data: paths, stroke: '#3b82f6', strokeWidth: 1.5, fill: 'transparent', scaleX: 8, scaleY: 8, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]);
@@ -729,7 +726,7 @@ function App() {
     const node = e.target;
     const scaleX = node.scaleX(); const scaleY = node.scaleY();
     let newProps = { x: node.x(), y: node.y(), rotation: node.rotation() };
-    if (['image', 'rect', 'path', 'icon'].includes(el.type)) newProps = { ...newProps, scaleX: scaleX, scaleY: scaleY };
+    if (['image', 'rect', 'path', 'icon'].includes(el.type)) newProps = { ...newProps, scaleX, scaleY };
     else if (el.type === 'text') { node.scaleX(1); node.scaleY(1); newProps = { ...newProps, width: Math.max(20, node.width() * scaleX), fontSize: Math.max(10, node.fontSize() * scaleY) }; }
     else if (['circle', 'polygon'].includes(el.type)) { node.scaleX(1); node.scaleY(1); newProps = { ...newProps, radius: Math.max(10, node.radius() * scaleX) }; }
     else if (el.type === 'star') { node.scaleX(1); node.scaleY(1); newProps = { ...newProps, innerRadius: Math.max(10, node.innerRadius() * scaleX), outerRadius: Math.max(10, node.outerRadius() * scaleX) }; }
@@ -748,11 +745,7 @@ function App() {
     stageRef.current.position({ x: 0, y: 0 });
     stageRef.current.batchDraw();
 
-    const uri = stageRef.current.toDataURL({
-      x: 0, y: 0,
-      width: canvasSize.width, height: canvasSize.height,
-      pixelRatio: 2
-    });
+    const uri = stageRef.current.toDataURL({ x: 0, y: 0, width: canvasSize.width, height: canvasSize.height, pixelRatio: 2 });
 
     stageRef.current.scale({ x: oldScale, y: oldScale });
     stageRef.current.position(oldPos);
@@ -768,7 +761,6 @@ function App() {
   const saveProject = () => {
     const fileName = prompt("Nhập tên file dự án (không cần đuôi .json):", "pixelcraft-project");
     if (!fileName) return;
-
     const projectData = { elements, bgColor, canvasSize };
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projectData));
     const downloadAnchorNode = document.createElement('a');
@@ -791,9 +783,7 @@ function App() {
         if (parsed.canvasSize) setCanvasSize(parsed.canvasSize);
         setSelectedId(null);
         alert("Mở file thiết kế thành công!");
-      } catch (err) {
-        alert("File không hợp lệ!");
-      }
+      } catch { alert("File không hợp lệ!"); }
     };
     reader.readAsText(file);
     e.target.value = null;
@@ -817,14 +807,14 @@ function App() {
       ...shadowProps,
       onMouseDown: (e) => {
         e.cancelBubble = true;
-        if(currentTool === 'select' && !isRulerMode) {
+        if (currentTool === 'select' && !isRulerMode) {
           setSelectedId(el.id);
           if (isMobile) setIsRightOpen(true);
         }
       },
       onTap: (e) => {
         e.cancelBubble = true;
-        if(currentTool === 'select' && !isRulerMode) {
+        if (currentTool === 'select' && !isRulerMode) {
           setSelectedId(el.id);
           if (isMobile) setIsRightOpen(true);
         }
@@ -835,23 +825,9 @@ function App() {
 
     if (el.type === 'icon') {
       return (
-        <Group
-          key={el.id}
-          {...commonProps}
-          scaleX={el.scaleX || 1}
-          scaleY={el.scaleY || 1}
-        >
+        <Group key={el.id} {...commonProps} scaleX={el.scaleX || 1} scaleY={el.scaleY || 1}>
           {el.data.map((pathData, index) => (
-            <Path
-              key={index}
-              data={pathData}
-              stroke={el.stroke}
-              strokeWidth={el.strokeWidth}
-              fill={el.fill}
-              {...shadowProps}
-              lineCap="round"
-              lineJoin="round"
-            />
+            <Path key={index} data={pathData} stroke={el.stroke} strokeWidth={el.strokeWidth} fill={el.fill} {...shadowProps} lineCap="round" lineJoin="round" />
           ))}
         </Group>
       );
@@ -884,11 +860,19 @@ function App() {
     return null;
   };
 
-  // ✅ Project handlers
-  const openProject = (id) => {
+  // ========== PROJECT MANAGEMENT ==========
+  const saveCurrentProjectIfAny = () => {
+    if (!currentProjectId) return;
+    const name = projects.find(p => p.id === currentProjectId)?.name || 'Untitled';
+    localStorage.setItem(`project_${currentProjectId}`, JSON.stringify({
+      id: currentProjectId, name, elements, bgColor, canvasSize, updatedAt: Date.now()
+    }));
+  };
+
+  const loadProjectData = (id) => {
     try {
       const data = localStorage.getItem(`project_${id}`);
-      if (!data) return alert('Project không tồn tại');
+      if (!data) return false;
       const project = JSON.parse(data);
       setElements(project.elements || []);
       setBgColor(project.bgColor || '#ffffff');
@@ -897,13 +881,43 @@ function App() {
       setHistoryStep(0);
       setSelectedId(null);
       setCurrentProjectId(id);
-      setView('editor');
-    } catch { alert('Lỗi mở project'); }
+      userHasMovedCanvas.current = false;
+      return true;
+    } catch { return false; }
+  };
+
+  const openProject = (id) => {
+    if (currentProjectId && currentProjectId !== id) saveCurrentProjectIfAny();
+    if (!loadProjectData(id)) return alert('Project không tồn tại');
+    setOpenProjectIds(prev => prev.includes(id) ? prev : [...prev, id]);
+    setView('editor');
+  };
+
+  const switchProject = (id) => {
+    if (id === currentProjectId) return;
+    saveCurrentProjectIfAny();
+    loadProjectData(id);
+  };
+
+  const closeProjectTab = (id) => {
+    const filtered = openProjectIds.filter(p => p !== id);
+    if (currentProjectId === id) {
+      if (filtered.length > 0) {
+        switchProject(filtered[filtered.length - 1]);
+      } else {
+        saveCurrentProjectIfAny();
+        setView('lobby');
+        setCurrentProjectId(null);
+        setSelectedId(null);
+      }
+    }
+    setOpenProjectIds(filtered);
   };
 
   const handleCreateProject = () => {
     const name = prompt('Tên project mới:', `Dự án ${projects.length + 1}`);
     if (!name) return;
+    saveCurrentProjectIfAny();
     const id = uuidv4();
     const now = Date.now();
     const project = {
@@ -919,33 +933,17 @@ function App() {
   };
 
   const handleExitProject = () => {
+    saveCurrentProjectIfAny();
     setView('lobby');
     setCurrentProjectId(null);
     setSelectedId(null);
     setShowProjectMenu(false);
-  };
-
-  const handleNewProject = () => {
-    setShowProjectMenu(false);
-    handleCreateProject();
+    setOpenProjectIds([]);
   };
 
   const handleNewTabProject = () => {
-    const name = prompt('Tên project mới (tab mới):', `Dự án ${projects.length + 1}`);
-    if (!name) return;
-    const id = uuidv4();
-    const now = Date.now();
-    const project = {
-      id, name, elements: [], bgColor: '#ffffff',
-      canvasSize: { width: 800, height: 600 },
-      createdAt: now, updatedAt: now
-    };
-    localStorage.setItem(`project_${id}`, JSON.stringify(project));
-    const newList = [...projects, { id, name, createdAt: now, updatedAt: now }];
-    localStorage.setItem('projects', JSON.stringify(newList));
-    setProjects(newList);
     setShowProjectMenu(false);
-    window.open(`${window.location.pathname}?project=${id}`, '_blank');
+    handleCreateProject();
   };
 
   const deleteProject = (id) => {
@@ -954,6 +952,12 @@ function App() {
     const newList = projects.filter(p => p.id !== id);
     localStorage.setItem('projects', JSON.stringify(newList));
     setProjects(newList);
+    setOpenProjectIds(prev => prev.filter(p => p !== id));
+    if (currentProjectId === id) {
+      setView('lobby');
+      setCurrentProjectId(null);
+      setSelectedId(null);
+    }
   };
 
   const renameProject = (id) => {
@@ -974,6 +978,7 @@ function App() {
     }
   };
 
+  // ========== PROPERTIES PANEL ==========
   const renderProperties = () => {
     if (!selectedId || !selectedEl || currentTool !== 'select' || isRulerMode) return null;
 
@@ -986,15 +991,12 @@ function App() {
 
         <div style={{ display: 'flex', borderBottom: '1px solid #ddd', marginBottom: '15px' }}>
           {['basic', 'effects', 'colors'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+            <button key={tab} onClick={() => setActiveTab(tab)}
               style={{
                 flex: 1, padding: '8px', background: 'none', border: 'none', cursor: 'pointer',
                 borderBottom: activeTab === tab ? '2px solid #3b82f6' : 'none',
                 color: activeTab === tab ? '#3b82f6' : '#6b7280', fontWeight: 'bold'
-              }}
-            >
+              }}>
               {tab === 'basic' ? 'Cơ bản' : tab === 'effects' ? 'Hiệu ứng' : 'Màu sắc'}
             </button>
           ))}
@@ -1014,16 +1016,13 @@ function App() {
                 <div style={{ marginBottom: '15px' }}>
                   <div className="input-group" style={{ marginBottom: '10px' }}>
                     <label style={{ fontSize: '13px' }}>Nội dung chữ:</label>
-                    <input
-                      type="text"
-                      value={selectedEl.text}
+                    <input type="text" value={selectedEl.text}
                       onChange={(e) => {
                         const newText = e.target.value;
                         setElements(elements.map(el => el.id === selectedId ? { ...el, text: newText } : el));
                       }}
                       onBlur={() => saveToHistory(elements)}
-                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }}
-                    />
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }} />
                   </div>
                   <div className="input-group" style={{ marginBottom: '10px' }}>
                     <label style={{ fontSize: '13px' }}>Font chữ:</label>
@@ -1129,14 +1128,10 @@ function App() {
     );
   };
 
-  // ==================== LOBBY VIEW ====================
+  // ========== LOBBY VIEW ==========
   if (view === 'lobby') {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        padding: '40px 20px'
-      }}>
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '40px 20px' }}>
         <div style={{ maxWidth: '960px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '40px' }}>
             <h1 style={{ color: 'white', fontSize: '48px', marginBottom: '8px' }}>
@@ -1156,17 +1151,11 @@ function App() {
             }}>+ Tạo Project Mới</button>
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-            gap: '20px'
-          }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '20px' }}>
             {projects.length === 0 && (
-              <div style={{
-                gridColumn: '1 / -1', textAlign: 'center',
-                color: 'rgba(255,255,255,0.7)', padding: '60px 20px',
-                fontSize: '15px'
-              }}>Chưa có project nào. Bấm "Tạo Project Mới" để bắt đầu ✨</div>
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'rgba(255,255,255,0.7)', padding: '60px 20px', fontSize: '15px' }}>
+                Chưa có project nào. Bấm "Tạo Project Mới" để bắt đầu ✨
+              </div>
             )}
             {projects.map(p => (
               <div key={p.id} onClick={() => openProject(p.id)} style={{
@@ -1178,23 +1167,14 @@ function App() {
                 onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
               >
                 <div style={{ fontSize: '30px', marginBottom: '10px' }}>📄</div>
-                <h3 style={{
-                  margin: '0 0 6px', color: '#1f2937', fontSize: '16px',
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                }}>{p.name}</h3>
+                <h3 style={{ margin: '0 0 6px', color: '#1f2937', fontSize: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</h3>
                 <p style={{ margin: 0, color: '#6b7280', fontSize: '12px' }}>
                   {new Date(p.updatedAt).toLocaleDateString('vi-VN')} ·{' '}
                   {new Date(p.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                 </p>
                 <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '4px' }}>
-                  <button onClick={e => { e.stopPropagation(); renameProject(p.id); }} title="Đổi tên" style={{
-                    background: '#dbeafe', border: 'none', borderRadius: '50%',
-                    width: '28px', height: '28px', cursor: 'pointer', fontSize: '13px'
-                  }}>✏️</button>
-                  <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }} title="Xoá" style={{
-                    background: '#fee2e2', border: 'none', borderRadius: '50%',
-                    width: '28px', height: '28px', cursor: 'pointer', fontSize: '13px'
-                  }}>🗑️</button>
+                  <button onClick={e => { e.stopPropagation(); renameProject(p.id); }} title="Đổi tên" style={{ background: '#dbeafe', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontSize: '13px' }}>✏️</button>
+                  <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }} title="Xoá" style={{ background: '#fee2e2', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontSize: '13px' }}>🗑️</button>
                 </div>
               </div>
             ))}
@@ -1204,68 +1184,90 @@ function App() {
     );
   }
 
-  // ==================== EDITOR VIEW ====================
+  // ========== EDITOR VIEW ==========
   return (
-    <div
-      className="app-container"
-      style={{ flexDirection: 'column' }}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
+    <div className="app-container" style={{ flexDirection: 'column' }} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+
       {isDragging && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(59, 130, 246, 0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', border: '10px dashed white', boxSizing: 'border-box' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(59, 130, 246, 0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', border: '10px dashed white', boxSizing: 'border-box' }}>
           <h2 style={{ color: 'white', fontSize: '32px', textShadow: '2px 2px 4px rgba(0,0,0,0.3)' }}>Thả file Ảnh hoặc .json vào đây!</h2>
         </div>
       )}
 
       {isProcessing && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white' }}>
           <div style={{ border: '5px solid #f3f3f3', borderTop: '5px solid #8b5cf6', borderRadius: '50%', width: '60px', height: '60px', animation: 'spin 1s linear infinite' }}></div>
           <h3 style={{ marginTop: '20px', fontSize: '22px' }}>{processingText}</h3>
         </div>
       )}
 
+      {/* ✅ TASKBAR: Tab project trong app */}
+      <div style={{
+        display: 'flex', alignItems: 'flex-end', gap: '2px',
+        background: '#d1d5db', padding: '6px 10px 0', overflowX: 'auto',
+        flexShrink: 0, borderBottom: '1px solid #9ca3af',
+        minHeight: '36px'
+      }}>
+        {openProjectIds.map(id => {
+          const proj = projects.find(p => p.id === id);
+          if (!proj) return null;
+          const isActive = currentProjectId === id;
+          return (
+            <div key={id} onClick={() => switchProject(id)} style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '6px 10px',
+              background: isActive ? '#fff' : '#e5e7eb',
+              color: '#1f2937',
+              borderRadius: '6px 6px 0 0',
+              cursor: 'pointer', fontSize: '12px',
+              fontWeight: isActive ? 'bold' : 'normal',
+              maxWidth: '180px', minWidth: '80px',
+              whiteSpace: 'nowrap', flexShrink: 0,
+              boxShadow: isActive ? 'inset 0 2px 0 #3b82f6' : 'none'
+            }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                {proj.name}
+              </span>
+              <button onClick={(e) => { e.stopPropagation(); closeProjectTab(id); }}
+                title="Đóng tab"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#6b7280', fontSize: '16px', padding: '0 2px',
+                  lineHeight: 1, display: 'flex', alignItems: 'center'
+                }}>×</button>
+            </div>
+          );
+        })}
+        <button onClick={handleCreateProject} title="Tạo project mới"
+          style={{
+            padding: '5px 12px', background: 'rgba(255,255,255,0.4)',
+            color: '#374151', border: '1px solid #9ca3af',
+            borderRadius: '4px 4px 0 0', cursor: 'pointer',
+            fontSize: '16px', fontWeight: 'bold', flexShrink: 0,
+            marginLeft: '4px'
+          }}>+</button>
+      </div>
+
+      {/* Toolbar */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: '#e5e7eb', padding: '10px 15px', borderBottom: '1px solid #d1d5db', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* ✅ Nút Project */}
           <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowProjectMenu(v => !v)}
-              style={{
-                padding: '5px 10px', fontSize: '12px', fontWeight: 'bold',
-                borderRadius: '4px', border: '1px solid #ccc', background: '#fff',
-                display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer'
-              }}
-              title="Quản lý project"
-            >📁 Project</button>
+            <button onClick={() => setShowProjectMenu(v => !v)}
+              style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
+              title="Quản lý project">📁 Project</button>
 
             {showProjectMenu && (
               <>
-                <div onClick={() => setShowProjectMenu(false)} style={{
-                  position: 'fixed', inset: 0, zIndex: 998
-                }} />
-                <div style={{
-                  position: 'absolute', top: '100%', left: 0, marginTop: '6px',
-                  background: 'white', border: '1px solid #ddd', borderRadius: '8px',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)', minWidth: '230px',
-                  zIndex: 999, overflow: 'hidden'
-                }}>
+                <div onClick={() => setShowProjectMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '6px', background: 'white', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', minWidth: '230px', zIndex: 999, overflow: 'hidden' }}>
                   <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}>
                     <div style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Project hiện tại</div>
-                    <div style={{
-                      fontSize: '13px', fontWeight: 'bold', color: '#1f2937',
-                      marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                    }}>
+                    <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1f2937', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {projects.find(p => p.id === currentProjectId)?.name || 'Untitled'}
                     </div>
                   </div>
-                  <button onClick={() => { setShowProjectMenu(false); handleExitProject(); }}
-                    style={PROJECT_MENU_ITEM_STYLE}>🚪 Thoát project</button>
-                  <button onClick={handleNewTabProject}
-                    style={PROJECT_MENU_ITEM_STYLE}>🆕 New tab project</button>
-                  <button onClick={handleNewProject}
-                    style={PROJECT_MENU_ITEM_STYLE}>✨ New project</button>
+                  <button onClick={() => { setShowProjectMenu(false); handleExitProject(); }} style={PROJECT_MENU_ITEM_STYLE}>🚪 Thoát project</button>
+                  <button onClick={handleNewTabProject} style={PROJECT_MENU_ITEM_STYLE}>🆕 New tab project</button>
                 </div>
               </>
             )}
@@ -1273,11 +1275,9 @@ function App() {
 
           <h2 style={{ fontSize: '18px', color: '#1f2937', margin: 0, fontWeight: '700' }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
 
-          <select
-            value={`${canvasSize.width}x${canvasSize.height}`}
+          <select value={`${canvasSize.width}x${canvasSize.height}`}
             onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); setCanvasSize({ width: w, height: h }); }}
-            style={{ padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold' }}
-          >
+            style={{ padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold' }}>
             <option value="800x600">800x600</option>
             <option value="1080x1080">1080x1080</option>
             <option value="1080x1920">1080x1920 (Story)</option>
@@ -1286,9 +1286,9 @@ function App() {
           </select>
 
           <div style={{ display: 'flex', gap: '5px', borderLeft: '1px solid #ccc', paddingLeft: '10px' }}>
-            <button className={`btn ${currentTool === 'brush' ? 'btn-primary' : ''}`} style={{ border: '1px solid #ccc', background: currentTool === 'brush' ? '#3b82f6' : '#fff', color: currentTool === 'brush' ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px' }} onClick={() => { setCurrentTool('brush'); setIsRulerMode(false); }}>🖌️ Bút</button>
-            <button className={`btn ${isRulerMode ? 'btn-primary' : ''}`} style={{ border: '1px solid #ccc', background: isRulerMode ? '#10b981' : '#fff', color: isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px' }} onClick={() => { setIsRulerMode(true); setCurrentTool('select'); }}>📏 Thước</button>
-            <button className={`btn ${currentTool === 'select' ? 'btn-primary' : ''}`} style={{ border: '1px solid #ccc', background: currentTool === 'select' && !isRulerMode ? '#3b82f6' : '#fff', color: currentTool === 'select' && !isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px' }} onClick={() => { setCurrentTool('select'); setIsRulerMode(false); }}>🖱️ Chọn</button>
+            <button style={{ border: '1px solid #ccc', background: currentTool === 'brush' ? '#3b82f6' : '#fff', color: currentTool === 'brush' ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => { setCurrentTool('brush'); setIsRulerMode(false); }}>🖌️ Bút</button>
+            <button style={{ border: '1px solid #ccc', background: isRulerMode ? '#10b981' : '#fff', color: isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => { setIsRulerMode(true); setCurrentTool('select'); }}>📏 Thước</button>
+            <button style={{ border: '1px solid #ccc', background: currentTool === 'select' && !isRulerMode ? '#3b82f6' : '#fff', color: currentTool === 'select' && !isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => { setCurrentTool('select'); setIsRulerMode(false); }}>🖱️ Chọn</button>
           </div>
 
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '1px solid #ccc', paddingLeft: '10px', flexWrap: 'wrap' }}>
@@ -1303,7 +1303,7 @@ function App() {
                 <span onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)} style={{ color: '#3b82f6', borderRadius: '50%', border: '1px solid #3b82f6', width: '14px', height: '14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', cursor: 'help' }}>i</span>
               </label>
               {showTooltip && (
-                <div style={{ position: 'absolute', top: '25px', left: '-20px', background: '#333', color: 'white', padding: '5px 10px', borderRadius: '5px', fontSize: '12px', whiteSpace: 'nowrap', zIndex: 1000, boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>Chỉnh độ dày của bút vẽ và thước kẻ</div>
+                <div style={{ position: 'absolute', top: '25px', left: '-20px', background: '#333', color: 'white', padding: '5px 10px', borderRadius: '5px', fontSize: '12px', whiteSpace: 'nowrap', zIndex: 1000 }}>Chỉnh độ dày của bút vẽ và thước kẻ</div>
               )}
               <input type="range" min="1" max="30" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} style={{ width: '60px' }} />
               <span style={{ fontSize: '12px', width: '15px' }}>{brushSize}</span>
@@ -1324,22 +1324,16 @@ function App() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative', minHeight: 0 }}>
 
-        <div
-          style={{
-            width: isLeftOpen ? (isMobile ? '100%' : '250px') : '0px',
-            overflow: 'hidden',
-            transition: 'width 0.3s',
-            background: 'white',
-            position: 'absolute',
-            left: 0,
-            zIndex: 100,
-            height: '100%',
-            borderRight: isLeftOpen ? '1px solid #ddd' : 'none',
-            boxShadow: isLeftOpen ? '5px 0 15px rgba(0,0,0,0.1)' : 'none'
-          }}
-        >
+        {/* Left panel */}
+        <div style={{
+          width: isLeftOpen ? (isMobile ? '100%' : '250px') : '0px',
+          overflow: 'hidden', transition: 'width 0.3s', background: 'white',
+          position: 'absolute', left: 0, zIndex: 100, height: '100%',
+          borderRight: isLeftOpen ? '1px solid #ddd' : 'none',
+          boxShadow: isLeftOpen ? '5px 0 15px rgba(0,0,0,0.1)' : 'none'
+        }}>
           <div style={{ padding: '15px', overflowY: 'auto', height: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <h2 style={{ fontSize: '16px', margin: 0 }}>Thư Viện Hình</h2>
@@ -1387,15 +1381,12 @@ function App() {
         </div>
 
         {!isMobile && (
-          <button
-            onClick={() => setIsLeftOpen(!isLeftOpen)}
-            style={{ position: 'absolute', left: isLeftOpen ? '250px' : '0px', top: '50%', transform: 'translateY(-50%)', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderLeft: 'none', borderRadius: '0 5px 5px 0', padding: '10px 5px', cursor: 'pointer', transition: 'left 0.3s', boxShadow: '2px 0 5px rgba(0,0,0,0.1)' }}
-          >
+          <button onClick={() => setIsLeftOpen(!isLeftOpen)} style={{ position: 'absolute', left: isLeftOpen ? '250px' : '0px', top: '50%', transform: 'translateY(-50%)', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderLeft: 'none', borderRadius: '0 5px 5px 0', padding: '10px 5px', cursor: 'pointer', transition: 'left 0.3s' }}>
             {isLeftOpen ? '◀' : '▶'}
           </button>
         )}
 
-        <div ref={mainAreaRef} className="main-area" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#e5e7eb', touchAction: 'none' }}>
+        <div ref={mainAreaRef} className="main-area" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#e5e7eb', touchAction: 'none', minHeight: 0 }}>
 
           {!isLeftOpen && (
             <button onClick={() => setIsLeftOpen(true)} style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>📚</button>
@@ -1426,10 +1417,15 @@ function App() {
             }}
             onDragEnd={(e) => {
               if (e.target === e.target.getStage()) {
-                setStagePos({ x: e.target.x(), y: e.target.y() });
+                const clamped = clampStagePos({ x: e.target.x(), y: e.target.y() }, mainAreaSize, canvasSize, stageScale);
+                e.target.position(clamped);
+                setStagePos(clamped);
+                userHasMovedCanvas.current = true;
                 setTimeout(() => { isCanvasDragging.current = false; }, 50);
               }
             }}
+            // ✅ FIX: giới hạn vị trí để canvas không bị mất khỏi viewport
+            dragBoundFunc={(pos) => clampStagePos(pos, mainAreaSize, canvasSize, stageScale)}
             scaleX={stageScale}
             scaleY={stageScale}
             x={stagePos.x}
@@ -1454,11 +1450,18 @@ function App() {
           </Stage>
 
           <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'white', padding: '5px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', display: 'flex', gap: '5px', alignItems: 'center', zIndex: 10 }}>
-            <button onClick={() => setStageScale(s => Math.max(0.1, s - 0.1))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>-</button>
+            <button onClick={() => {
+              userHasMovedCanvas.current = true;
+              setStageScale(s => Math.max(0.1, s - 0.1));
+            }} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>-</button>
             <span style={{ fontSize: '12px', fontWeight: 'bold', width: '40px', textAlign: 'center' }}>{Math.round(stageScale * 100)}%</span>
-            <button onClick={() => setStageScale(s => Math.min(5, s + 0.1))} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
+            <button onClick={() => {
+              userHasMovedCanvas.current = true;
+              setStageScale(s => Math.min(5, s + 0.1));
+            }} style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
             <button onClick={() => {
               setStageScale(1);
+              userHasMovedCanvas.current = false;
               setStagePos({
                 x: mainAreaSize.width / 2 - canvasSize.width / 2,
                 y: mainAreaSize.height / 2 - canvasSize.height / 2,
@@ -1468,74 +1471,60 @@ function App() {
         </div>
 
         {selectedId && selectedEl && currentTool === 'select' && !isRulerMode && (
-          <button
-            onClick={() => setIsRightOpen(!isRightOpen)}
+          <button onClick={() => setIsRightOpen(!isRightOpen)}
             style={{
               position: 'absolute',
               right: isMobile ? '20px' : (isRightOpen ? '300px' : '0px'),
               bottom: isMobile ? (isRightOpen ? 'calc(40vh + 20px)' : '20px') : 'auto',
               top: isMobile ? 'auto' : '50%',
               transform: isMobile ? 'none' : 'translateY(-50%)',
-              zIndex: 101,
-              background: '#fff',
-              border: '1px solid #ccc',
+              zIndex: 101, background: '#fff', border: '1px solid #ccc',
               borderRadius: isMobile ? '50%' : '5px 0 0 5px',
               borderRight: isMobile ? '1px solid #ccc' : 'none',
-              width: isMobile ? '50px' : 'auto',
-              height: isMobile ? '50px' : 'auto',
-              padding: isMobile ? '0' : '10px 5px',
-              cursor: 'pointer',
-              transition: 'all 0.3s',
-              boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              width: isMobile ? '50px' : 'auto', height: isMobile ? '50px' : 'auto',
+              padding: isMobile ? '0' : '10px 5px', cursor: 'pointer',
+              transition: 'all 0.3s', boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: isMobile ? '24px' : '20px'
-            }}
-          >
+            }}>
             {isRightOpen ? (isMobile ? '✕' : '▶') : '⚙️'}
           </button>
         )}
 
-        <div
-          style={{
-            position: isMobile ? 'fixed' : 'absolute',
-            bottom: 0,
-            right: isMobile ? 0 : 0,
-            width: isMobile ? '100%' : (isRightOpen && selectedId ? '300px' : '0px'),
-            height: isMobile ? '40vh' : '100%',
-            backgroundColor: '#f8fafc',
-            zIndex: 9999,
-            transform: (isRightOpen && selectedId) ? 'translateY(0)' : (isMobile ? 'translateY(100%)' : 'translateX(100%)'),
-            transition: 'transform 0.3s ease-in-out',
-            borderTopLeftRadius: isMobile ? '15px' : '0',
-            borderTopRightRadius: isMobile ? '15px' : '0',
-            borderLeft: (!isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none',
-            borderTop: (isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none',
-            boxShadow: (isRightOpen && selectedId) ? (isMobile ? '0 -5px 15px rgba(0,0,0,0.1)' : '-5px 0 15px rgba(0,0,0,0.1)') : 'none',
-            display: 'flex', flexDirection: 'column',
-            onMouseDown: (e) => e.stopPropagation(),
-            onTouchStart: (e) => e.stopPropagation(),
-            onClick: (e) => e.stopPropagation()
-          }}
-        >
+        <div style={{
+          position: isMobile ? 'fixed' : 'absolute',
+          bottom: 0, right: 0,
+          width: isMobile ? '100%' : (isRightOpen && selectedId ? '300px' : '0px'),
+          height: isMobile ? '40vh' : '100%',
+          backgroundColor: '#f8fafc', zIndex: 9999,
+          transform: (isRightOpen && selectedId) ? 'translateY(0)' : (isMobile ? 'translateY(100%)' : 'translateX(100%)'),
+          transition: 'transform 0.3s ease-in-out',
+          borderTopLeftRadius: isMobile ? '15px' : '0',
+          borderTopRightRadius: isMobile ? '15px' : '0',
+          borderLeft: (!isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none',
+          borderTop: (isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none',
+          boxShadow: (isRightOpen && selectedId) ? (isMobile ? '0 -5px 15px rgba(0,0,0,0.1)' : '-5px 0 15px rgba(0,0,0,0.1)') : 'none',
+          display: 'flex', flexDirection: 'column',
+          onMouseDown: (e) => e.stopPropagation(),
+          onTouchStart: (e) => e.stopPropagation(),
+          onClick: (e) => e.stopPropagation()
+        }}>
           {isMobile && (
-             <div style={{ width: '100%', height: '25px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-               <div style={{ width: '40px', height: '5px', background: '#cbd5e1', borderRadius: '5px' }} />
-             </div>
+            <div style={{ width: '100%', height: '25px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ width: '40px', height: '5px', background: '#cbd5e1', borderRadius: '5px' }} />
+            </div>
           )}
           {renderProperties()}
         </div>
-
       </div>
 
       {isBuilderOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div style={{ background: 'white', padding: '20px', borderRadius: '10px', width: '90%', maxWidth: '350px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ background: 'white', padding: '20px', borderRadius: '10px', width: '90%', maxWidth: '350px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ marginBottom: '15px', textAlign: 'center' }}>Tạo Hình Tự Do</h3>
             <div className="input-group" style={{ marginBottom: '10px' }}>
               <label>Loại hình:</label>
-              <select value={draftShape.type} onChange={(e) => setDraftShape({...draftShape, type: e.target.value})} style={{ padding: '8px', width: '100%', borderRadius: '5px', border: '1px solid #ddd' }}>
+              <select value={draftShape.type} onChange={(e) => setDraftShape({ ...draftShape, type: e.target.value })} style={{ padding: '8px', width: '100%', borderRadius: '5px', border: '1px solid #ddd' }}>
                 <option value="rect">Chữ Nhật</option>
                 <option value="circle">Hình Tròn</option>
                 <option value="polygon">Đa Giác</option>
@@ -1544,29 +1533,29 @@ function App() {
             </div>
             {draftShape.type === 'rect' && (
               <>
-                <label>Độ bo góc: {draftShape.cornerRadius}px</label><input type="range" min="0" max="100" value={draftShape.cornerRadius} onChange={(e) => setDraftShape({...draftShape, cornerRadius: parseInt(e.target.value)})} style={{ width: '100%', marginBottom: '10px' }} />
-                <label>Chiều rộng: {draftShape.width}px</label><input type="range" min="20" max="400" value={draftShape.width} onChange={(e) => setDraftShape({...draftShape, width: parseInt(e.target.value)})} style={{ width: '100%', marginBottom: '10px' }} />
-                <label>Chiều cao: {draftShape.height}px</label><input type="range" min="20" max="400" value={draftShape.height} onChange={(e) => setDraftShape({...draftShape, height: parseInt(e.target.value)})} style={{ width: '100%', marginBottom: '10px' }} />
+                <label>Độ bo góc: {draftShape.cornerRadius}px</label><input type="range" min="0" max="100" value={draftShape.cornerRadius} onChange={(e) => setDraftShape({ ...draftShape, cornerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+                <label>Chiều rộng: {draftShape.width}px</label><input type="range" min="20" max="400" value={draftShape.width} onChange={(e) => setDraftShape({ ...draftShape, width: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+                <label>Chiều cao: {draftShape.height}px</label><input type="range" min="20" max="400" value={draftShape.height} onChange={(e) => setDraftShape({ ...draftShape, height: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
               </>
             )}
             {(draftShape.type === 'circle' || draftShape.type === 'polygon') && (
-              <><label>Bán kính: {draftShape.radius}px</label><input type="range" min="10" max="200" value={draftShape.radius} onChange={(e) => setDraftShape({...draftShape, radius: parseInt(e.target.value)})} style={{ width: '100%', marginBottom: '10px' }} /></>
+              <><label>Bán kính: {draftShape.radius}px</label><input type="range" min="10" max="200" value={draftShape.radius} onChange={(e) => setDraftShape({ ...draftShape, radius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>
             )}
             {draftShape.type === 'polygon' && (
-              <><label>Số cạnh: {draftShape.sides}</label><input type="range" min="3" max="20" value={draftShape.sides} onChange={(e) => setDraftShape({...draftShape, sides: parseInt(e.target.value)})} style={{ width: '100%', marginBottom: '10px' }} /></>
+              <><label>Số cạnh: {draftShape.sides}</label><input type="range" min="3" max="20" value={draftShape.sides} onChange={(e) => setDraftShape({ ...draftShape, sides: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>
             )}
             {draftShape.type === 'star' && (
               <>
-                <label>Số cánh: {draftShape.numPoints}</label><input type="range" min="3" max="20" value={draftShape.numPoints} onChange={(e) => setDraftShape({...draftShape, numPoints: parseInt(e.target.value)})} style={{ width: '100%', marginBottom: '10px' }} />
-                <label>Bán kính ngoài: {draftShape.outerRadius}px</label><input type="range" min="20" max="200" value={draftShape.outerRadius} onChange={(e) => setDraftShape({...draftShape, outerRadius: parseInt(e.target.value)})} style={{ width: '100%', marginBottom: '10px' }} />
-                <label>Bán kính trong: {draftShape.innerRadius}px</label><input type="range" min="5" max={draftShape.outerRadius - 5} value={draftShape.innerRadius} onChange={(e) => setDraftShape({...draftShape, innerRadius: parseInt(e.target.value)})} style={{ width: '100%', marginBottom: '10px' }} />
+                <label>Số cánh: {draftShape.numPoints}</label><input type="range" min="3" max="20" value={draftShape.numPoints} onChange={(e) => setDraftShape({ ...draftShape, numPoints: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+                <label>Bán kính ngoài: {draftShape.outerRadius}px</label><input type="range" min="20" max="200" value={draftShape.outerRadius} onChange={(e) => setDraftShape({ ...draftShape, outerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+                <label>Bán kính trong: {draftShape.innerRadius}px</label><input type="range" min="5" max={draftShape.outerRadius - 5} value={draftShape.innerRadius} onChange={(e) => setDraftShape({ ...draftShape, innerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
               </>
             )}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-              <div style={{ flex: 1 }}><label>Màu nền:</label><input type="color" value={draftShape.fill} onChange={(e) => setDraftShape({...draftShape, fill: e.target.value})} style={{ width: '100%', height: '30px' }} /></div>
-              <div style={{ flex: 1 }}><label>Màu viền:</label><input type="color" value={draftShape.stroke} onChange={(e) => setDraftShape({...draftShape, stroke: e.target.value})} style={{ width: '100%', height: '30px' }} /></div>
+              <div style={{ flex: 1 }}><label>Màu nền:</label><input type="color" value={draftShape.fill} onChange={(e) => setDraftShape({ ...draftShape, fill: e.target.value })} style={{ width: '100%', height: '30px' }} /></div>
+              <div style={{ flex: 1 }}><label>Màu viền:</label><input type="color" value={draftShape.stroke} onChange={(e) => setDraftShape({ ...draftShape, stroke: e.target.value })} style={{ width: '100%', height: '30px' }} /></div>
             </div>
-            <label>Độ dày viền: {draftShape.strokeWidth}px</label><input type="range" min="0" max="20" value={draftShape.strokeWidth} onChange={(e) => setDraftShape({...draftShape, strokeWidth: parseInt(e.target.value)})} style={{ width: '100%', marginBottom: '15px' }} />
+            <label>Độ dày viền: {draftShape.strokeWidth}px</label><input type="range" min="0" max="20" value={draftShape.strokeWidth} onChange={(e) => setDraftShape({ ...draftShape, strokeWidth: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '15px' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
               <button className="btn" style={{ flex: 1, background: '#e5e7eb' }} onClick={() => setIsBuilderOpen(false)}>Hủy</button>
               <button className="btn btn-primary" style={{ flex: 1 }} onClick={saveCustomShape}>Lưu Hình</button>
