@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Stage, Layer, Text, Image as KonvaImage, Rect, Circle, Star, RegularPolygon, Arrow, Path, Line, Transformer, Group } from 'react-konva';
+import { Stage, Layer, Text, Image as KonvaImage, Rect, Circle, Star, RegularPolygon, Arrow, Path, Line, Transformer } from 'react-konva';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { v4 as uuidv4 } from 'uuid';
 import useImage from 'use-image';
@@ -129,7 +129,6 @@ function App() {
   const lastDist = useRef(0);
 
   const [isRulerMode, setIsRulerMode] = useState(false);
-  const startPoint = useRef(null);
   const [tempLine, setTempLine] = useState(null);
 
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
@@ -157,12 +156,12 @@ function App() {
     localStorage.setItem('canvas_size', JSON.stringify(canvasSize));
   }, [elements, bgColor, customShapes, canvasSize]);
 
-  // KHỞI TẠO VỊ TRÍ BAN ĐẦU
+  // KHỞI TẠO VỊ TRÍ BAN ĐẦU (Căn giữa Canvas)
   useEffect(() => {
     if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
       setStagePos({
-        x: mainAreaSize.width / 2,
-        y: mainAreaSize.height / 2
+        x: mainAreaSize.width / 2 - (canvasSize.width * stageScale) / 2,
+        y: mainAreaSize.height / 2 - (canvasSize.height * stageScale) / 2
       });
     }
   }, [mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height]);
@@ -224,7 +223,10 @@ function App() {
     if (window.confirm("Bạn có chắc chắn muốn ĐẶT LẠI TỪ ĐẦU?")) {
       setElements([]); setBgColor('#ffffff'); setSelectedId(null); setCurrentTool('select'); setHistory([[]]); setHistoryStep(0);
       setStageScale(1);
-      setStagePos({ x: mainAreaSize.width / 2, y: mainAreaSize.height / 2 });
+      setStagePos({
+        x: mainAreaSize.width / 2 - canvasSize.width / 2,
+        y: mainAreaSize.height / 2 - canvasSize.height / 2
+      });
     }
   };
 
@@ -252,13 +254,11 @@ function App() {
     });
   };
 
-  // HÀM XỬ LÝ CẢM ỨNG (SỬA LỖI VẼ BẰNG 1 NGÓN TAY)
   const handleTouchMove = (e) => {
     e.evt.preventDefault();
     const touch1 = e.evt.touches[0];
     const touch2 = e.evt.touches[1];
 
-    // NẾU CÓ 2 NGÓN TAY -> ZOOM
     if (touch1 && touch2) {
       isDrawing.current = false;
       if (stageRef.current.isDragging()) {
@@ -294,26 +294,22 @@ function App() {
       });
 
       lastDist.current = newDist;
-      return; // Thoát, không xử lý vẽ
+      return;
     }
 
-    // NẾU CHỈ CÓ 1 NGÓN TAY -> VẼ HOẶC KẺ THƯỚC
+    // VẼ BẰNG 1 NGÓN TAY
+    const stage = e.target.getStage();
+    const point = stage.getRelativePointerPosition();
+
     if (currentTool === 'brush' && isDrawing.current) {
-      const stage = e.target.getStage();
-      const transform = stage.getAbsoluteTransform().copy().invert();
-      const point = transform.point(stage.getPointerPosition());
-      
       let lastLine = elements[elements.length - 1];
       if (lastLine && lastLine.type === 'brush') {
         lastLine.points = lastLine.points.concat([point.x, point.y]);
         const newElements = elements.slice(0, elements.length - 1).concat(lastLine);
         setElements(newElements);
       }
-    } else if (isRulerMode && startPoint.current) {
-      const stage = e.target.getStage();
-      const transform = stage.getAbsoluteTransform().copy().invert();
-      const pos = transform.point(stage.getPointerPosition());
-      setTempLine(prev => ({ ...prev, points: [0, 0, pos.x - prev.x, pos.y - prev.y] }));
+    } else if (isRulerMode && tempLine) {
+      setTempLine(prev => ({ ...prev, points: [0, 0, point.x - prev.x, point.y - prev.y] }));
     }
   };
 
@@ -324,7 +320,7 @@ function App() {
       const endY = tempLine.y + tempLine.points[3];
       const newLine = { id: uuidv4(), type: 'brush', points: [tempLine.x, tempLine.y, endX, endY], stroke: brushColor, strokeWidth: brushSize, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
       saveToHistory([...elements, newLine]);
-      setTempLine(null); startPoint.current = null;
+      setTempLine(null);
     } else if (isDrawing.current) {
       isDrawing.current = false; 
       saveToHistory(elements);
@@ -332,10 +328,10 @@ function App() {
   };
 
   const handleStageMouseDown = (e) => {
+    const stage = e.target.getStage();
+    const pos = stage.getRelativePointerPosition();
+
     if (isRulerMode) {
-      startPoint.current = e.target.getStage().getPointerPosition();
-      const transform = e.target.getAbsoluteTransform().copy().invert();
-      const pos = transform.point(startPoint.current);
       setTempLine({ x: pos.x, y: pos.y, points: [0, 0, 0, 0] });
       return;
     }
@@ -343,9 +339,6 @@ function App() {
       return;
     }
     isDrawing.current = true;
-    const stage = e.target.getStage();
-    const transform = stage.getAbsoluteTransform().copy().invert();
-    const pos = transform.point(stage.getPointerPosition());
     
     const newLine = { 
       id: uuidv4(), type: 'brush', points: [pos.x, pos.y], stroke: brushColor, strokeWidth: brushSize, tension: 0.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' 
@@ -354,21 +347,18 @@ function App() {
   };
 
   const handleStageMouseMove = (e) => {
-    if (isRulerMode && startPoint.current) {
-      const stage = e.target.getStage();
-      const transform = stage.getAbsoluteTransform().copy().invert();
-      const pos = transform.point(stage.getPointerPosition());
+    const stage = e.target.getStage();
+    const pos = stage.getRelativePointerPosition();
+
+    if (isRulerMode && tempLine) {
       setTempLine(prev => ({ ...prev, points: [0, 0, pos.x - prev.x, pos.y - prev.y] }));
       return;
     }
     if (!isDrawing.current || currentTool !== 'brush') return;
-    const stage = e.target.getStage();
-    const transform = stage.getAbsoluteTransform().copy().invert();
-    const point = transform.point(stage.getPointerPosition());
     
     let lastLine = elements[elements.length - 1];
     if (lastLine && lastLine.type === 'brush') {
-      lastLine.points = lastLine.points.concat([point.x, point.y]);
+      lastLine.points = lastLine.points.concat([pos.x, pos.y]);
       const newElements = elements.slice(0, elements.length - 1).concat(lastLine);
       setElements(newElements);
     }
@@ -380,7 +370,7 @@ function App() {
       const endY = tempLine.y + tempLine.points[3];
       const newLine = { id: uuidv4(), type: 'brush', points: [tempLine.x, tempLine.y, endX, endY], stroke: brushColor, strokeWidth: brushSize, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
       saveToHistory([...elements, newLine]);
-      setTempLine(null); startPoint.current = null;
+      setTempLine(null);
       return;
     }
     if (isDrawing.current) { isDrawing.current = false; saveToHistory(elements); }
@@ -483,10 +473,12 @@ function App() {
   };
 
   const getCenterPosition = () => {
-    if (!stageRef.current) return { x: 0, y: 0 };
+    if (!stageRef.current) return { x: canvasSize.width / 2, y: canvasSize.height / 2 };
     let visibleW = mainAreaSize.width;
     let visibleH = mainAreaSize.height;
     if (isMobile && isRightOpen) { visibleH = visibleH * 0.6; }
+    
+    // Tính toán tọa độ điểm giữa màn hình so với hệ tọa độ của Canvas
     const centerX = (visibleW / 2 - stagePos.x) / stageScale;
     const centerY = (visibleH / 2 - stagePos.y) / stageScale;
     return { x: centerX, y: centerY };
@@ -496,8 +488,12 @@ function App() {
     const node = layerRef.current.findOne('#' + selectedId);
     if (!node) return;
     const box = node.getClientRect({ relativeTo: layerRef.current });
-    const dx = -box.width / 2 - box.x;
-    const dy = -box.height / 2 - box.y;
+    const canvasCenterX = canvasSize.width / 2;
+    const canvasCenterY = canvasSize.height / 2;
+    
+    const dx = canvasCenterX - (box.x + box.width / 2);
+    const dy = canvasCenterY - (box.y + box.height / 2);
+    
     updateElement(selectedId, { x: node.x() + dx, y: node.y() + dy });
   };
 
@@ -693,11 +689,7 @@ function App() {
 
     if (el.type === 'icon') {
       return (
-        <Group key={el.id} {...commonProps} scaleX={el.scaleX || 1} scaleY={el.scaleY || 1}>
-          {el.data.map((pathD, index) => (
-            <Path key={index} data={pathD} stroke={el.stroke} strokeWidth={el.strokeWidth} fill={el.fill} lineCap="round" lineJoin="round" {...shadowProps} />
-          ))}
-        </Group>
+        <KonvaImage key={el.id} {...commonProps} />
       );
     }
 
@@ -1068,19 +1060,17 @@ function App() {
             style={{ cursor: (currentTool === 'brush' || isRulerMode) ? 'crosshair' : 'grab' }}
           >
             <Layer ref={layerRef}>
-              <Group x={-canvasSize.width / 2} y={-canvasSize.height / 2}>
-                <Rect width={canvasSize.width} height={canvasSize.height} fill={bgColor} shadowColor="#000" shadowBlur={20} shadowOpacity={0.2} listening={false} />
-                
-                {elements.map(renderShape)}
-                {isRulerMode && tempLine && <Line x={tempLine.x} y={tempLine.y} points={tempLine.points} stroke={brushColor} strokeWidth={brushSize} dash={[10, 5]} />}
-                
-                <Transformer 
-                  ref={trRef} 
-                  keepRatio={['circle', 'star', 'text', 'path', 'icon', 'polygon'].includes(selectedEl?.type)}
-                  anchorSize={22} anchorCornerRadius={10} anchorStroke="#3b82f6" anchorStrokeWidth={2} anchorFill="#ffffff" borderStroke="#3b82f6" borderStrokeWidth={2} rotateAnchorOffset={40} ignoreStroke={true} 
-                  boundBoxFunc={(oldBox, newBox) => { if (newBox.width < 20 || newBox.height < 20) return oldBox; return newBox; }} 
-                />
-              </Group>
+              <Rect width={canvasSize.width} height={canvasSize.height} fill={bgColor} shadowColor="#000" shadowBlur={20} shadowOpacity={0.2} listening={false} />
+              
+              {elements.map(renderShape)}
+              {isRulerMode && tempLine && <Line x={tempLine.x} y={tempLine.y} points={tempLine.points} stroke={brushColor} strokeWidth={brushSize} dash={[10, 5]} />}
+              
+              <Transformer 
+                ref={trRef} 
+                keepRatio={['circle', 'star', 'text', 'path', 'icon', 'polygon'].includes(selectedEl?.type)}
+                anchorSize={22} anchorCornerRadius={10} anchorStroke="#3b82f6" anchorStrokeWidth={2} anchorFill="#ffffff" borderStroke="#3b82f6" borderStrokeWidth={2} rotateAnchorOffset={40} ignoreStroke={true} 
+                boundBoxFunc={(oldBox, newBox) => { if (newBox.width < 20 || newBox.height < 20) return oldBox; return newBox; }} 
+              />
             </Layer>
           </Stage>
 
