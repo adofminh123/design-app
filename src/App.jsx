@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import Konva from 'konva';
 import { Stage, Layer, Group, Text, Image as KonvaImage, Rect, Circle, Star, RegularPolygon, Arrow, Path, Line, Transformer } from 'react-konva';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { v4 as uuidv4 } from 'uuid';
@@ -88,9 +89,7 @@ const toggleFontStyle = (el, style) => {
 
 const initLegacyProject = () => {
   const existing = localStorage.getItem('projects');
-  if (existing) {
-    try { return JSON.parse(existing); } catch { return []; }
-  }
+  if (existing) { try { return JSON.parse(existing); } catch { return []; } }
   const oldElements = localStorage.getItem('design_elements');
   if (oldElements && oldElements !== '[]') {
     try {
@@ -131,11 +130,8 @@ const clampStagePos = (pos, mainAreaSize, canvasSize, stageScale) => {
 
 const ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
-// ============================================
-// 🔀 BEND HELPERS
-// ============================================
+// ============ BEND HELPERS ============
 const SHAPE_BENDABLE = ['rect', 'polygon', 'star', 'bentShape'];
-
 const getBaseType = (el) => el.baseType || el.type;
 
 const getEdgeCount = (el) => {
@@ -150,12 +146,7 @@ const getEdgeMidpoints = (el) => {
   const bt = getBaseType(el);
   if (bt === 'rect') {
     const w = el.width, h = el.height;
-    return [
-      { x: w / 2, y: 0 },
-      { x: w, y: h / 2 },
-      { x: w / 2, y: h },
-      { x: 0, y: h / 2 }
-    ];
+    return [{ x: w/2, y: 0 }, { x: w, y: h/2 }, { x: w/2, y: h }, { x: 0, y: h/2 }];
   }
   if (bt === 'polygon') {
     const { radius, sides } = el;
@@ -173,16 +164,16 @@ const getEdgeMidpoints = (el) => {
   }
   if (bt === 'star') {
     const { innerRadius, outerRadius, numPoints } = el;
-    const totalPts = numPoints * 2;
+    const total = numPoints * 2;
     const verts = [];
-    for (let i = 0; i < totalPts; i++) {
+    for (let i = 0; i < total; i++) {
       const r = i % 2 === 0 ? outerRadius : innerRadius;
-      const a = (i * Math.PI * 2) / totalPts - Math.PI / 2;
+      const a = (i * Math.PI * 2) / total - Math.PI / 2;
       verts.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
     }
     const mids = [];
-    for (let i = 0; i < totalPts; i++) {
-      const nv = verts[(i + 1) % totalPts];
+    for (let i = 0; i < total; i++) {
+      const nv = verts[(i + 1) % total];
       mids.push({ x: (verts[i].x + nv.x) / 2, y: (verts[i].y + nv.y) / 2 });
     }
     return mids;
@@ -193,21 +184,10 @@ const getEdgeMidpoints = (el) => {
 const buildBentPath = (el) => {
   const bt = getBaseType(el);
   const bends = el.bends || [];
-
   if (bt === 'rect') {
     const w = el.width, h = el.height;
-    const corners = [
-      { x: 0, y: 0 },
-      { x: w, y: 0 },
-      { x: w, y: h },
-      { x: 0, y: h }
-    ];
-    const mids = [
-      { x: w / 2, y: 0 },
-      { x: w, y: h / 2 },
-      { x: w / 2, y: h },
-      { x: 0, y: h / 2 }
-    ];
+    const corners = [{ x:0,y:0 }, { x:w,y:0 }, { x:w,y:h }, { x:0,y:h }];
+    const mids = [{ x:w/2,y:0 }, { x:w,y:h/2 }, { x:w/2,y:h }, { x:0,y:h/2 }];
     let data = `M ${corners[0].x} ${corners[0].y} `;
     for (let i = 0; i < 4; i++) {
       const nc = corners[(i + 1) % 4];
@@ -216,7 +196,6 @@ const buildBentPath = (el) => {
     }
     return data + 'Z';
   }
-
   if (bt === 'polygon') {
     const { radius, sides } = el;
     const verts = [];
@@ -234,19 +213,18 @@ const buildBentPath = (el) => {
     }
     return data + 'Z';
   }
-
   if (bt === 'star') {
     const { innerRadius, outerRadius, numPoints } = el;
-    const totalPts = numPoints * 2;
+    const total = numPoints * 2;
     const verts = [];
-    for (let i = 0; i < totalPts; i++) {
+    for (let i = 0; i < total; i++) {
       const r = i % 2 === 0 ? outerRadius : innerRadius;
-      const a = (i * Math.PI * 2) / totalPts - Math.PI / 2;
+      const a = (i * Math.PI * 2) / total - Math.PI / 2;
       verts.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
     }
     let data = `M ${verts[0].x} ${verts[0].y} `;
-    for (let i = 0; i < totalPts; i++) {
-      const nv = verts[(i + 1) % totalPts];
+    for (let i = 0; i < total; i++) {
+      const nv = verts[(i + 1) % total];
       const mx = (verts[i].x + nv.x) / 2;
       const my = (verts[i].y + nv.y) / 2;
       const b = bends[i] || { x: 0, y: 0 };
@@ -254,91 +232,51 @@ const buildBentPath = (el) => {
     }
     return data + 'Z';
   }
-
   return 'M 0 0 Z';
 };
 
-// 🔀 ArcText — render text cong theo cung tròn
 const ArcText = ({ text, fontSize, fontFamily, fontStyle, fill, stroke, strokeWidth, bendAmount, textDecoration, align, width, ...rest }) => {
   if (!bendAmount || bendAmount === 0) {
-    return (
-      <Text
-        {...rest}
-        text={text} fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle}
-        fill={fill} stroke={stroke} strokeWidth={strokeWidth}
-        textDecoration={textDecoration} align={align} width={width}
-      />
-    );
+    return <Text {...rest} text={text} fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle} fill={fill} stroke={stroke} strokeWidth={strokeWidth} textDecoration={textDecoration} align={align} width={width} />;
   }
-
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   const isBold = fontStyle && fontStyle.includes('bold') ? 'bold ' : '';
   const isItalic = fontStyle && fontStyle.includes('italic') ? 'italic ' : '';
   ctx.font = `${isItalic}${isBold}${fontSize}px ${fontFamily || 'Arial'}`;
-
   const chars = [...text];
   const charWidths = chars.map(c => ctx.measureText(c).width);
   const totalWidth = charWidths.reduce((a, b) => a + b, 0);
-
   if (totalWidth === 0) return null;
-
   const bendRad = (bendAmount / 100) * Math.PI;
   const absBendRad = Math.abs(bendRad);
   if (absBendRad < 0.001) {
-    return (
-      <Text
-        {...rest}
-        text={text} fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle}
-        fill={fill} stroke={stroke} strokeWidth={strokeWidth}
-        textDecoration={textDecoration} align={align} width={width}
-      />
-    );
+    return <Text {...rest} text={text} fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle} fill={fill} stroke={stroke} strokeWidth={strokeWidth} textDecoration={textDecoration} align={align} width={width} />;
   }
-
   const radius = totalWidth / absBendRad;
-
   let cumWidth = 0;
   const charNodes = chars.map((char, i) => {
     const cw = charWidths[i];
     const localOffset = cumWidth + cw / 2 - totalWidth / 2;
     cumWidth += cw;
-
     const angle = localOffset / radius;
     let charX, charY, charRotation;
-
     if (bendAmount > 0) {
-      // Cong lên (smile): tâm cung ở dưới
       charX = Math.sin(angle) * radius;
       charY = radius - Math.cos(angle) * radius;
       charRotation = angle * (180 / Math.PI);
     } else {
-      // Cong xuống (mếu): tâm cung ở trên
       charX = Math.sin(angle) * radius;
       charY = -radius + Math.cos(angle) * radius;
       charRotation = -angle * (180 / Math.PI);
     }
-
     return (
-      <Text
-        key={i}
-        text={char}
-        x={charX}
-        y={charY}
-        rotation={charRotation}
-        fontSize={fontSize}
-        fontFamily={fontFamily}
-        fontStyle={fontStyle}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={strokeWidth}
-        textDecoration={textDecoration}
-        offsetX={cw / 2}
-        offsetY={fontSize / 2}
-      />
+      <Text key={i} text={char} x={charX} y={charY} rotation={charRotation}
+        fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle}
+        fill={fill} stroke={stroke} strokeWidth={strokeWidth}
+        textDecoration={textDecoration} offsetX={cw / 2} offsetY={fontSize / 2} />
     );
   });
-
   return <Group {...rest}>{charNodes}</Group>;
 };
 
@@ -354,22 +292,31 @@ function App() {
   const projectBtnRef = useRef(null);
   const [projectMenuPos, setProjectMenuPos] = useState({ left: 0, top: 0 });
 
-  // 🔀 Bend mode
   const [bendMode, setBendMode] = useState(false);
-
+  const [showLayers, setShowLayers] = useState(false);
+  const [exportScale, setExportScale] = useState(2);
   const [mobileDragHint, setMobileDragHint] = useState(false);
   const mobileHintTimeoutRef = useRef(null);
-
-  const elementsRef = useRef(elements);
-  const arrowNudgePendingRef = useRef(false);
+  const dragStartPositions = useRef({});
 
   const promptResolveRef = useRef(null);
   const confirmResolveRef = useRef(null);
   const [promptState, setPromptState] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
 
+  // ✅ STATE ORDER: elements FIRST
   const [elements, setElements] = useState(getInitialElements);
   const [customShapes, setCustomShapes] = useState(getInitialCustomShapes);
+
+  // ✅ elementsRef AFTER elements (fix TDZ bug)
+  const elementsRef = useRef(null);
+  useEffect(() => { elementsRef.current = elements; }, [elements]);
+  const arrowNudgePendingRef = useRef(false);
+
+  // ✅ Multi-select: selectedIds array
+  const [selectedIds, setSelectedIds] = useState([]);
+  const selectedId = selectedIds.length === 1 ? selectedIds[0] : null;
+  const setSelectedId = (id) => setSelectedIds(id ? [id] : []);
 
   const [canvasSize, setCanvasSize] = useState(() => {
     const saved = localStorage.getItem('canvas_size');
@@ -377,7 +324,6 @@ function App() {
   });
 
   const [bgColor, setBgColor] = useState(() => localStorage.getItem('design_bg') || '#ffffff');
-  const [selectedId, setSelectedId] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingText, setProcessingText] = useState('');
 
@@ -403,36 +349,30 @@ function App() {
   const [isEditingZoom, setIsEditingZoom] = useState(false);
   const [zoomInputValue, setZoomInputValue] = useState('');
 
-  // ============ MODAL HELPERS ============
   const showPrompt = (title, defaultValue = '') => new Promise((resolve) => {
     promptResolveRef.current = resolve;
     setPromptState({ title, value: defaultValue });
   });
-
   const handlePromptConfirm = () => {
     const value = promptState?.value?.trim() || '';
     setPromptState(null);
     promptResolveRef.current?.(value || null);
     promptResolveRef.current = null;
   };
-
   const handlePromptCancel = () => {
     setPromptState(null);
     promptResolveRef.current?.(null);
     promptResolveRef.current = null;
   };
-
   const showConfirm = (title) => new Promise((resolve) => {
     confirmResolveRef.current = resolve;
     setConfirmState({ title });
   });
-
   const handleConfirmYes = () => {
     setConfirmState(null);
     confirmResolveRef.current?.(true);
     confirmResolveRef.current = null;
   };
-
   const handleConfirmNo = () => {
     setConfirmState(null);
     confirmResolveRef.current?.(false);
@@ -448,10 +388,7 @@ function App() {
     document.head.appendChild(link);
   }, []);
 
-  useEffect(() => { elementsRef.current = elements; }, [elements]);
-
-  // Reset bend mode khi đổi shape
-  useEffect(() => { setBendMode(false); }, [selectedId]);
+  useEffect(() => { if (selectedIds.length === 1) setBendMode(false); }, [selectedIds]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -480,10 +417,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const onResize = () => {
-      setShowAddTabPopup(false);
-      setShowProjectMenu(false);
-    };
+    const onResize = () => { setShowAddTabPopup(false); setShowProjectMenu(false); };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -491,9 +425,7 @@ function App() {
   useEffect(() => {
     if (!mainAreaRef.current) return;
     const observer = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        setMainAreaSize({ width: entry.contentRect.width, height: entry.contentRect.height });
-      }
+      for (let entry of entries) setMainAreaSize({ width: entry.contentRect.width, height: entry.contentRect.height });
     });
     observer.observe(mainAreaRef.current);
     return () => observer.disconnect();
@@ -502,26 +434,21 @@ function App() {
   const [isLeftOpen, setIsLeftOpen] = useState(!isMobile);
   const [isRightOpen, setIsRightOpen] = useState(true);
   const [showTooltip, setShowTooltip] = useState(false);
-
   const [currentTool, setCurrentTool] = useState('select');
   const [brushColor, setBrushColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(5);
   const isDrawing = useRef(false);
   const lastDist = useRef(0);
-
   const [isRulerMode, setIsRulerMode] = useState(false);
   const [tempLine, setTempLine] = useState(null);
-
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [draftShape, setDraftShape] = useState({
     type: 'rect', width: 200, height: 150, cornerRadius: 0,
     radius: 80, sides: 5, innerRadius: 40, outerRadius: 80, numPoints: 5,
     fill: '#3b82f6', stroke: '#000000', strokeWidth: 0
   });
-
   const [stageScale, setStageScale] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
-
   const [history, setHistory] = useState([getInitialElements()]);
   const [historyStep, setHistoryStep] = useState(0);
 
@@ -545,31 +472,27 @@ function App() {
 
   useEffect(() => {
     if (mainAreaSize.width <= 0 || mainAreaSize.height <= 0) return;
-    const canvasChanged = lastCanvasSizeRef.current.width !== canvasSize.width ||
-                          lastCanvasSizeRef.current.height !== canvasSize.height;
+    const canvasChanged = lastCanvasSizeRef.current.width !== canvasSize.width || lastCanvasSizeRef.current.height !== canvasSize.height;
     lastCanvasSizeRef.current = canvasSize;
     if (canvasChanged) userHasMovedCanvas.current = false;
     if (!userHasMovedCanvas.current) {
-      setStagePos({
-        x: mainAreaSize.width / 2 - (canvasSize.width * stageScale) / 2,
-        y: mainAreaSize.height / 2 - (canvasSize.height * stageScale) / 2
-      });
+      setStagePos({ x: mainAreaSize.width / 2 - (canvasSize.width * stageScale) / 2, y: mainAreaSize.height / 2 - (canvasSize.height * stageScale) / 2 });
     } else {
       setStagePos(prev => clampStagePos(prev, mainAreaSize, canvasSize, stageScale));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height]);
 
+  // ✅ Transformer attach for multi-select
   useEffect(() => {
-    if (selectedId && currentTool === 'select' && !isRulerMode && !bendMode) {
-      const node = layerRef.current.findOne('#' + selectedId);
-      if (node) trRef.current.nodes([node]);
-      else trRef.current.nodes([]);
+    if (selectedIds.length > 0 && currentTool === 'select' && !isRulerMode && !bendMode) {
+      const nodes = selectedIds.map(id => layerRef.current?.findOne('#' + id)).filter(Boolean);
+      if (trRef.current) trRef.current.nodes(nodes);
     } else {
       if (trRef.current) trRef.current.nodes([]);
     }
     if (layerRef.current) layerRef.current.batchDraw();
-  }, [selectedId, elements, currentTool, isRulerMode, bendMode]);
+  }, [selectedIds, elements, currentTool, isRulerMode, bendMode]);
 
   useEffect(() => {
     if (mainAreaSize.height > 0 && zoomPopupPos.y === null) {
@@ -598,9 +521,10 @@ function App() {
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       const popupW = 210, popupH = 44;
-      const newX = Math.max(0, Math.min(rect.width - popupW, clientX - rect.left - zoomDragOffset.current.x));
-      const newY = Math.max(0, Math.min(rect.height - popupH, clientY - rect.top - zoomDragOffset.current.y));
-      setZoomPopupPos({ x: newX, y: newY });
+      setZoomPopupPos({
+        x: Math.max(0, Math.min(rect.width - popupW, clientX - rect.left - zoomDragOffset.current.x)),
+        y: Math.max(0, Math.min(rect.height - popupH, clientY - rect.top - zoomDragOffset.current.y))
+      });
     };
     const onUp = () => setIsDraggingZoom(false);
     window.addEventListener('mousemove', onMove);
@@ -621,16 +545,16 @@ function App() {
       if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); handleUndo(); }
       else if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); handleRedo(); }
       else if (e.key === 'Backspace' || e.key === 'Delete') {
-        if (!selectedId) return;
+        if (selectedIds.length === 0) return;
         e.preventDefault();
-        if (e.key === 'Backspace') {
+        if (e.key === 'Backspace' && selectedId) {
           const el = elements.find(item => item.id === selectedId);
           if (el && el.type === 'text' && el.text && el.text.length > 0) { updateElement(selectedId, { text: '' }); return; }
         }
         deleteSelected();
       }
       else if (ARROW_KEYS.includes(e.key)) {
-        if (!selectedId || bendMode) return;
+        if (selectedIds.length === 0 || bendMode) return;
         e.preventDefault();
         arrowNudgePendingRef.current = true;
         const step = e.shiftKey ? 10 : 1;
@@ -639,10 +563,7 @@ function App() {
         if (e.key === 'ArrowDown') dy = step;
         if (e.key === 'ArrowLeft') dx = -step;
         if (e.key === 'ArrowRight') dx = step;
-        setElements(prev => prev.map(item => item.id === selectedId
-          ? { ...item, x: (item.x || 0) + dx, y: (item.y || 0) + dy }
-          : item
-        ));
+        setElements(prev => prev.map(item => selectedIds.includes(item.id) ? { ...item, x: (item.x || 0) + dx, y: (item.y || 0) + dy } : item));
       }
       else if (e.key === 'Escape') {
         e.preventDefault();
@@ -650,64 +571,61 @@ function App() {
         if (confirmState) { handleConfirmNo(); return; }
         if (showAddTabPopup) { setShowAddTabPopup(false); return; }
         if (showProjectMenu) { setShowProjectMenu(false); return; }
+        if (showLayers) { setShowLayers(false); return; }
         if (bendMode) { setBendMode(false); return; }
         if (isRulerMode) { setIsRulerMode(false); setTempLine(null); }
         else if (currentTool !== 'select') setCurrentTool('select');
-        else if (selectedId) setSelectedId(null);
+        else if (selectedIds.length > 0) setSelectedIds([]);
       }
     };
-
     const handleKeyUp = (e) => {
       if (ARROW_KEYS.includes(e.key) && arrowNudgePendingRef.current) {
-        const currentElements = elementsRef.current;
+        const cur = elementsRef.current;
         const newHistory = history.slice(0, historyStep + 1);
-        newHistory.push(currentElements);
+        newHistory.push(cur);
         setHistory(newHistory);
         setHistoryStep(newHistory.length - 1);
         arrowNudgePendingRef.current = false;
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [historyStep, history, selectedId, elements, currentTool, isRulerMode, showAddTabPopup, showProjectMenu, promptState, confirmState, bendMode]);
+  }, [historyStep, history, selectedIds, selectedId, elements, currentTool, isRulerMode, showAddTabPopup, showProjectMenu, promptState, confirmState, bendMode, showLayers]);
 
   useEffect(() => {
     if (!isMobile) return;
-    if (!selectedId) { setMobileDragHint(false); return; }
+    if (selectedIds.length === 0) { setMobileDragHint(false); return; }
     setMobileDragHint(true);
     if (mobileHintTimeoutRef.current) clearTimeout(mobileHintTimeoutRef.current);
     mobileHintTimeoutRef.current = setTimeout(() => setMobileDragHint(false), 1800);
     return () => { if (mobileHintTimeoutRef.current) clearTimeout(mobileHintTimeoutRef.current); };
-  }, [selectedId, isMobile]);
+  }, [selectedIds, isMobile]);
 
   const saveToHistory = (newElements) => {
     const newHistory = history.slice(0, historyStep + 1);
     newHistory.push(newElements);
     setHistory(newHistory); setHistoryStep(newHistory.length - 1); setElements(newElements);
   };
-
   const handleUndo = () => {
     if (historyStep > 0) {
       const prevStep = historyStep - 1;
-      setHistoryStep(prevStep); setElements(history[prevStep]); setSelectedId(null);
+      setHistoryStep(prevStep); setElements(history[prevStep]); setSelectedIds([]);
     }
   };
   const handleRedo = () => {
     if (historyStep < history.length - 1) {
       const nextStep = historyStep + 1;
-      setHistoryStep(nextStep); setElements(history[nextStep]); setSelectedId(null);
+      setHistoryStep(nextStep); setElements(history[nextStep]); setSelectedIds([]);
     }
   };
-
   const handleReset = async () => {
     const ok = await showConfirm("Bạn có chắc chắn muốn ĐẶT LẠI TỪ ĐẦU?");
     if (!ok) return;
-    setElements([]); setBgColor('#ffffff'); setSelectedId(null); setCurrentTool('select'); setHistory([[]]); setHistoryStep(0);
+    setElements([]); setBgColor('#ffffff'); setSelectedIds([]); setCurrentTool('select'); setHistory([[]]); setHistoryStep(0);
     setStageScale(1);
     userHasMovedCanvas.current = false;
     setStagePos({ x: mainAreaSize.width / 2 - canvasSize.width / 2, y: mainAreaSize.height / 2 - canvasSize.height / 2 });
@@ -718,10 +636,10 @@ function App() {
     if (Math.abs(newScale - stageScale) < 0.001) return;
     const vpCenterX = mainAreaSize.width / 2;
     const vpCenterY = mainAreaSize.height / 2;
-    const mousePointTo = { x: (vpCenterX - stagePos.x) / stageScale, y: (vpCenterY - stagePos.y) / stageScale };
+    const mpt = { x: (vpCenterX - stagePos.x) / stageScale, y: (vpCenterY - stagePos.y) / stageScale };
     userHasMovedCanvas.current = true;
     setStageScale(newScale);
-    setStagePos(clampStagePos({ x: vpCenterX - mousePointTo.x * newScale, y: vpCenterY - mousePointTo.y * newScale }, mainAreaSize, canvasSize, newScale));
+    setStagePos(clampStagePos({ x: vpCenterX - mpt.x * newScale, y: vpCenterY - mpt.y * newScale }, mainAreaSize, canvasSize, newScale));
   };
 
   const commitZoom = () => {
@@ -748,30 +666,26 @@ function App() {
     const oldScale = stage.scaleX();
     const pointerPosition = stage.getPointerPosition();
     if (!pointerPosition) return;
-    const mousePointTo = { x: (pointerPosition.x - stage.x()) / oldScale, y: (pointerPosition.y - stage.y()) / oldScale };
+    const mpt = { x: (pointerPosition.x - stage.x()) / oldScale, y: (pointerPosition.y - stage.y()) / oldScale };
     const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
     if (newScale < 0.1 || newScale > 5) return;
     userHasMovedCanvas.current = true;
     setStageScale(newScale);
-    setStagePos({ x: pointerPosition.x - mousePointTo.x * newScale, y: pointerPosition.y - mousePointTo.y * newScale });
+    setStagePos({ x: pointerPosition.x - mpt.x * newScale, y: pointerPosition.y - mpt.y * newScale });
   };
 
   const handleTouchMove = (e) => {
     e.evt.preventDefault();
-    const touch1 = e.evt.touches[0];
-    const touch2 = e.evt.touches[1];
-    if (touch1 && touch2) {
+    const t1 = e.evt.touches[0];
+    const t2 = e.evt.touches[1];
+    if (t1 && t2) {
       isDrawing.current = false;
       if (stageRef.current.isDragging()) stageRef.current.stopDrag();
       if (layerRef.current) {
-        try {
-          layerRef.current.getChildren().forEach(child => {
-            if (child.isDragging && child.isDragging()) child.stopDrag();
-          });
-        } catch {}
+        try { layerRef.current.getChildren().forEach(c => { if (c.isDragging && c.isDragging()) c.stopDrag(); }); } catch {}
       }
-      const p1 = { x: touch1.clientX, y: touch1.clientY };
-      const p2 = { x: touch2.clientX, y: touch2.clientY };
+      const p1 = { x: t1.clientX, y: t1.clientY };
+      const p2 = { x: t2.clientX, y: t2.clientY };
       const newDist = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
       const newCenter = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
       if (lastDist.current === 0) { lastDist.current = newDist; return; }
@@ -780,10 +694,10 @@ function App() {
       let newScale = oldScale * scaleBy;
       if (newScale < 0.1) newScale = 0.1;
       if (newScale > 5) newScale = 5;
-      const pointerTo = { x: (newCenter.x - stageRef.current.x()) / oldScale, y: (newCenter.y - stageRef.current.y()) / oldScale };
+      const pt = { x: (newCenter.x - stageRef.current.x()) / oldScale, y: (newCenter.y - stageRef.current.y()) / oldScale };
       userHasMovedCanvas.current = true;
       setStageScale(newScale);
-      setStagePos({ x: newCenter.x - pointerTo.x * newScale, y: newCenter.y - pointerTo.y * newScale });
+      setStagePos({ x: newCenter.x - pt.x * newScale, y: newCenter.y - pt.y * newScale });
       lastDist.current = newDist;
       return;
     }
@@ -861,7 +775,7 @@ function App() {
           if (parsed.elements) saveToHistory(parsed.elements);
           if (parsed.bgColor) setBgColor(parsed.bgColor);
           if (parsed.canvasSize) setCanvasSize(parsed.canvasSize);
-          setSelectedId(null);
+          setSelectedIds([]);
           alert("Kéo thả dự án thành công!");
         } catch { alert("File JSON không hợp lệ!"); }
       };
@@ -955,12 +869,62 @@ function App() {
   };
 
   const centerSelected = () => {
-    const node = layerRef.current.findOne('#' + selectedId);
-    if (!node) return;
-    const box = node.getClientRect({ relativeTo: layerRef.current });
-    const dx = canvasSize.width / 2 - (box.x + box.width / 2);
-    const dy = canvasSize.height / 2 - (box.y + box.height / 2);
-    updateElement(selectedId, { x: node.x() + dx, y: node.y() + dy });
+    if (selectedIds.length === 0) return;
+    const dxList = [];
+    const dyList = [];
+    selectedIds.forEach(id => {
+      const node = layerRef.current?.findOne('#' + id);
+      if (!node) return;
+      const box = node.getClientRect({ relativeTo: layerRef.current });
+      dxList.push(canvasSize.width / 2 - (box.x + box.width / 2));
+      dyList.push(canvasSize.height / 2 - (box.y + box.height / 2));
+    });
+    if (dxList.length === 0) return;
+    const avgDx = dxList.reduce((a, b) => a + b, 0) / dxList.length;
+    const avgDy = dyList.reduce((a, b) => a + b, 0) / dyList.length;
+    saveToHistory(elements.map(el => selectedIds.includes(el.id) ? { ...el, x: (el.x || 0) + avgDx, y: (el.y || 0) + avgDy } : el));
+  };
+
+  // ✅ ALIGN TOOLS
+  const alignSelected = (direction) => {
+    if (selectedIds.length < 2) return;
+    const boxes = selectedIds.map(id => {
+      const node = layerRef.current?.findOne('#' + id);
+      const el = elements.find(e => e.id === id);
+      if (!node || !el) return null;
+      const box = node.getClientRect({ relativeTo: layerRef.current });
+      return { id, el, box };
+    }).filter(Boolean);
+    if (boxes.length < 2) return;
+
+    let target;
+    if (direction === 'left') target = Math.min(...boxes.map(b => b.box.x));
+    if (direction === 'right') target = Math.max(...boxes.map(b => b.box.x + b.box.width));
+    if (direction === 'center-h') {
+      const minX = Math.min(...boxes.map(b => b.box.x));
+      const maxX = Math.max(...boxes.map(b => b.box.x + b.box.width));
+      target = (minX + maxX) / 2;
+    }
+    if (direction === 'top') target = Math.min(...boxes.map(b => b.box.y));
+    if (direction === 'bottom') target = Math.max(...boxes.map(b => b.box.y + b.box.height));
+    if (direction === 'center-v') {
+      const minY = Math.min(...boxes.map(b => b.box.y));
+      const maxY = Math.max(...boxes.map(b => b.box.y + b.box.height));
+      target = (minY + maxY) / 2;
+    }
+
+    saveToHistory(elements.map(el => {
+      const b = boxes.find(x => x.id === el.id);
+      if (!b) return el;
+      let newX = el.x || 0, newY = el.y || 0;
+      if (direction === 'left') newX += target - b.box.x;
+      if (direction === 'right') newX += target - (b.box.x + b.box.width);
+      if (direction === 'center-h') newX += target - (b.box.x + b.box.width / 2);
+      if (direction === 'top') newY += target - b.box.y;
+      if (direction === 'bottom') newY += target - (b.box.y + b.box.height);
+      if (direction === 'center-v') newY += target - (b.box.y + b.box.height / 2);
+      return { ...el, x: newX, y: newY };
+    }));
   };
 
   const addBasicShape = (type) => {
@@ -969,15 +933,15 @@ function App() {
     const center = getCenterPosition();
     const base = { id: uuidv4(), x: center.x, y: center.y, rotation: 0, scaleX: 1, scaleY: 1, stroke: '#000000', strokeWidth: 0, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     let newEl = {};
-    if (type === 'text') newEl = { ...base, type, text: 'Văn bản mới', fontSize: 40, fontFamily: 'Montserrat', fontStyle: 'normal', fill: '#000000', width: 200, align: 'center', bendAmount: 0 };
-    if (type === 'rect') newEl = { ...base, type, width: 200, height: 150, cornerRadius: 0, fill: '#3b82f6' };
-    if (type === 'circle') newEl = { ...base, type, radius: 80, fill: '#ef4444' };
-    if (type === 'triangle' || type === 'polygon') newEl = { ...base, type: 'polygon', radius: 80, sides: type === 'triangle' ? 3 : 5, fill: '#eab308' };
-    if (type === 'star') newEl = { ...base, type, innerRadius: 40, outerRadius: 80, numPoints: 5, fill: '#8b5cf6' };
-    if (type === 'arrow') newEl = { ...base, type, points: [0, 0, 150, 0], stroke: '#000000', strokeWidth: 4, pointerLength: 20, pointerWidth: 20 };
+    if (type === 'text') newEl = { ...base, type, text: 'Văn bản mới', fontSize: 40, fontFamily: 'Montserrat', fontStyle: 'normal', fill: '#000000', width: 200, align: 'center', bendAmount: 0, textStrokeEnabled: false, textStrokeColor: '#000000', textStrokeWidth: 0 };
+    if (type === 'rect') newEl = { ...base, type, width: 200, height: 150, cornerRadius: 0, fill: '#3b82f6', dashEnabled: false, dashPattern: [10, 5], lineCap: 'butt', lineJoin: 'miter' };
+    if (type === 'circle') newEl = { ...base, type, radius: 80, fill: '#ef4444', dashEnabled: false, dashPattern: [10, 5], lineCap: 'butt', lineJoin: 'miter' };
+    if (type === 'triangle' || type === 'polygon') newEl = { ...base, type: 'polygon', radius: 80, sides: type === 'triangle' ? 3 : 5, fill: '#eab308', dashEnabled: false, dashPattern: [10, 5], lineCap: 'butt', lineJoin: 'miter' };
+    if (type === 'star') newEl = { ...base, type, innerRadius: 40, outerRadius: 80, numPoints: 5, fill: '#8b5cf6', dashEnabled: false, dashPattern: [10, 5], lineCap: 'butt', lineJoin: 'miter' };
+    if (type === 'arrow') newEl = { ...base, type, points: [0, 0, 150, 0], stroke: '#000000', strokeWidth: 4, pointerLength: 20, pointerWidth: 20, dashEnabled: false, dashPattern: [10, 5], lineCap: 'butt', lineJoin: 'miter' };
     if (newEl.type) {
       saveToHistory([...elements, newEl]);
-      setSelectedId(newEl.id);
+      setSelectedIds([newEl.id]);
       if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
     }
   };
@@ -988,7 +952,7 @@ function App() {
     const center = getCenterPosition();
     const newEl = { ...shapeTemplate, id: uuidv4(), x: center.x, y: center.y, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]);
-    setSelectedId(newEl.id);
+    setSelectedIds([newEl.id]);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
 
@@ -1016,7 +980,7 @@ function App() {
     const center = getCenterPosition();
     const newEl = { id: uuidv4(), type: 'path', x: center.x, y: center.y, rotation: 0, data: [pathData], stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent', scaleX: 2.5, scaleY: 2.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]);
-    setSelectedId(newEl.id);
+    setSelectedIds([newEl.id]);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
 
@@ -1028,28 +992,44 @@ function App() {
     const center = getCenterPosition();
     const newEl = { id: uuidv4(), type: 'icon', x: center.x, y: center.y, rotation: 0, data: paths, stroke: '#3b82f6', strokeWidth: 1.5, fill: 'transparent', scaleX: 8, scaleY: 8, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     saveToHistory([...elements, newEl]);
-    setSelectedId(newEl.id);
+    setSelectedIds([newEl.id]);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
 
   const updateElement = (id, newAttrs) => { saveToHistory(elements.map(el => el.id === id ? { ...el, ...newAttrs } : el)); };
-  const deleteSelected = () => { saveToHistory(elements.filter(el => el.id !== selectedId)); setSelectedId(null); };
+  const deleteSelected = () => {
+    if (selectedIds.length === 0) return;
+    saveToHistory(elements.filter(el => !selectedIds.includes(el.id)));
+    setSelectedIds([]);
+  };
 
   const duplicateSelected = () => {
-    const el = elements.find(e => e.id === selectedId);
-    if (el) {
-      const newEl = { ...el, id: uuidv4(), x: (el.x || 0) + 30, y: (el.y || 0) + 30 };
-      saveToHistory([...elements, newEl]); setSelectedId(newEl.id);
-    }
+    if (selectedIds.length === 0) return;
+    const newIds = [];
+    const newEls = [...elements];
+    selectedIds.forEach(id => {
+      const el = elements.find(e => e.id === id);
+      if (el) {
+        const newEl = { ...el, id: uuidv4(), x: (el.x || 0) + 30, y: (el.y || 0) + 30 };
+        newEls.push(newEl);
+        newIds.push(newEl.id);
+      }
+    });
+    saveToHistory(newEls);
+    setSelectedIds(newIds);
   };
 
   const moveLayer = (direction) => {
-    const index = elements.findIndex(e => e.id === selectedId);
-    if (index === -1) return;
-    const newElements = [...elements];
-    const [element] = newElements.splice(index, 1);
-    if (direction === 'up') newElements.push(element); else newElements.unshift(element);
-    saveToHistory(newElements);
+    if (selectedIds.length === 0) return;
+    const newEls = [...elements];
+    selectedIds.forEach(id => {
+      const idx = newEls.findIndex(e => e.id === id);
+      if (idx === -1) return;
+      const [el] = newEls.splice(idx, 1);
+      if (direction === 'up') newEls.push(el);
+      else newEls.unshift(el);
+    });
+    saveToHistory(newEls);
   };
 
   const handleTransformEnd = (e, el) => {
@@ -1073,13 +1053,13 @@ function App() {
     stageRef.current.scale({ x: 1, y: 1 });
     stageRef.current.position({ x: 0, y: 0 });
     stageRef.current.batchDraw();
-    const uri = stageRef.current.toDataURL({ x: 0, y: 0, width: canvasSize.width, height: canvasSize.height, pixelRatio: 2 });
+    const uri = stageRef.current.toDataURL({ x: 0, y: 0, width: canvasSize.width, height: canvasSize.height, pixelRatio: exportScale });
     stageRef.current.scale({ x: oldScale, y: oldScale });
     stageRef.current.position(oldPos);
     stageRef.current.batchDraw();
     if (trRef.current) trRef.current.show();
     const link = document.createElement('a');
-    link.download = `${fileName}.png`;
+    link.download = `${fileName}@${exportScale}x.png`;
     link.href = uri;
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
@@ -1103,7 +1083,7 @@ function App() {
         if (parsed.elements) saveToHistory(parsed.elements);
         if (parsed.bgColor) setBgColor(parsed.bgColor);
         if (parsed.canvasSize) setCanvasSize(parsed.canvasSize);
-        setSelectedId(null);
+        setSelectedIds([]);
         alert("Mở file thiết kế thành công!");
       } catch { alert("File không hợp lệ!"); }
     };
@@ -1112,19 +1092,72 @@ function App() {
   };
 
   const selectedEl = elements.find(el => el.id === selectedId);
+  const multiSelect = selectedIds.length > 1;
 
   const renderShape = (el) => {
     const shadowProps = el.shadowEnabled ? {
       shadowColor: (el.shadowColor && el.shadowColor !== 'transparent') ? el.shadowColor : '#000000',
       shadowBlur: el.shadowBlur ?? 10, shadowOffsetX: el.shadowOffsetX ?? 5, shadowOffsetY: el.shadowOffsetY ?? 5, shadowForStrokeEnabled: true,
     } : {};
+    const dashProps = el.dashEnabled ? { dash: el.dashPattern || [10, 5] } : {};
     const commonProps = {
       id: el.id, x: el.x || 0, y: el.y || 0, rotation: el.rotation || 0,
-      draggable: currentTool === 'select' && !isRulerMode && !bendMode && (!isMobile || selectedId === el.id),
-      opacity: el.opacity ?? 1, ...shadowProps,
-      onMouseDown: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode && !bendMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
-      onTap: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode && !bendMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
-      onDragEnd: (e) => saveToHistory(elements.map(item => item.id === el.id ? { ...item, x: e.target.x(), y: e.target.y() } : item)),
+      draggable: currentTool === 'select' && !isRulerMode && !bendMode && (!isMobile || selectedIds.includes(el.id)),
+      opacity: el.opacity ?? 1,
+      visible: el.visible !== false,
+      ...shadowProps, ...dashProps,
+      lineCap: el.lineCap || 'butt', lineJoin: el.lineJoin || 'miter',
+      onMouseDown: (e) => {
+        e.cancelBubble = true;
+        if (currentTool !== 'select' || isRulerMode || bendMode) return;
+        if (e.evt.shiftKey || e.evt.metaKey || e.evt.ctrlKey) {
+          setSelectedIds(prev => prev.includes(el.id) ? prev.filter(x => x !== el.id) : [...prev, el.id]);
+        } else {
+          if (!selectedIds.includes(el.id)) setSelectedIds([el.id]);
+        }
+        if (isMobile) setIsRightOpen(true);
+      },
+      onTap: (e) => {
+        e.cancelBubble = true;
+        if (currentTool !== 'select' || isRulerMode || bendMode) return;
+        setSelectedIds([el.id]);
+        if (isMobile) setIsRightOpen(true);
+      },
+      onDragStart: (e) => {
+        if (selectedIds.includes(el.id) && selectedIds.length > 1) {
+          dragStartPositions.current = {};
+          selectedIds.forEach(id => {
+            const n = layerRef.current?.findOne('#' + id);
+            if (n) dragStartPositions.current[id] = { x: n.x(), y: n.y() };
+          });
+        }
+      },
+      onDragMove: (e) => {
+        if (selectedIds.includes(el.id) && selectedIds.length > 1 && dragStartPositions.current[el.id]) {
+          const start = dragStartPositions.current[el.id];
+          const dx = e.target.x() - start.x;
+          const dy = e.target.y() - start.y;
+          selectedIds.forEach(id => {
+            if (id === el.id) return;
+            const n = layerRef.current?.findOne('#' + id);
+            if (n && dragStartPositions.current[id]) {
+              n.position({ x: dragStartPositions.current[id].x + dx, y: dragStartPositions.current[id].y + dy });
+            }
+          });
+          layerRef.current?.batchDraw();
+        }
+      },
+      onDragEnd: (e) => {
+        if (selectedIds.includes(el.id) && selectedIds.length > 1 && dragStartPositions.current[el.id]) {
+          const start = dragStartPositions.current[el.id];
+          const dx = e.target.x() - start.x;
+          const dy = e.target.y() - start.y;
+          saveToHistory(elements.map(item => selectedIds.includes(item.id) ? { ...item, x: (item.x || 0) + dx, y: (item.y || 0) + dy } : item));
+          dragStartPositions.current = {};
+        } else {
+          saveToHistory(elements.map(item => item.id === el.id ? { ...item, x: e.target.x(), y: e.target.y() } : item));
+        }
+      },
       onTransformEnd: (e) => handleTransformEnd(e, el),
     };
 
@@ -1138,35 +1171,21 @@ function App() {
       );
     }
 
-    // 🔀 Bent shape
     if (el.type === 'bentShape') {
-      const pathData = buildBentPath(el);
-      return (
-        <Path
-          key={el.id}
-          {...commonProps}
-          data={pathData}
-          fill={el.fill}
-          stroke={el.stroke}
-          strokeWidth={el.strokeWidth}
-          scaleX={el.scaleX || 1}
-          scaleY={el.scaleY || 1}
-        />
-      );
+      return <Path key={el.id} {...commonProps} data={buildBentPath(el)} fill={el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} scaleX={el.scaleX || 1} scaleY={el.scaleY || 1} />;
     }
 
-    // 🔀 Bent text hoặc text thường
     if (el.type === 'text') {
       const textProps = {
         ...commonProps,
         text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily || 'Montserrat',
         fontStyle: el.fontStyle || 'normal', textDecoration: el.textDecoration || '',
-        align: el.align, fill: el.fill, stroke: el.stroke, strokeWidth: el.strokeWidth,
+        align: el.align, fill: el.fill,
+        stroke: el.textStrokeEnabled ? el.textStrokeColor : undefined,
+        strokeWidth: el.textStrokeEnabled ? el.textStrokeWidth : undefined,
         width: el.width, bendAmount: el.bendAmount || 0,
       };
-      if (el.bendAmount && el.bendAmount !== 0) {
-        return <ArcText key={el.id} {...textProps} />;
-      }
+      if (el.bendAmount && el.bendAmount !== 0) return <ArcText key={el.id} {...textProps} />;
       return <Text key={el.id} {...textProps} />;
     }
 
@@ -1208,7 +1227,7 @@ function App() {
       setCanvasSize(project.canvasSize || { width: 800, height: 600 });
       setHistory([project.elements || []]);
       setHistoryStep(0);
-      setSelectedId(null);
+      setSelectedIds([]);
       setCurrentProjectId(id);
       userHasMovedCanvas.current = false;
       return true;
@@ -1221,51 +1240,39 @@ function App() {
     setOpenProjectIds(prev => prev.includes(id) ? prev : [...prev, id]);
     setView('editor');
   };
-
-  const switchProject = (id) => {
-    if (id === currentProjectId) return;
-    saveCurrentProjectIfAny();
-    loadProjectData(id);
-  };
-
+  const switchProject = (id) => { if (id === currentProjectId) return; saveCurrentProjectIfAny(); loadProjectData(id); };
   const closeProjectTab = (id) => {
     const filtered = openProjectIds.filter(p => p !== id);
     if (currentProjectId === id) {
       if (filtered.length > 0) switchProject(filtered[filtered.length - 1]);
-      else { saveCurrentProjectIfAny(); setView('lobby'); setCurrentProjectId(null); setSelectedId(null); }
+      else { saveCurrentProjectIfAny(); setView('lobby'); setCurrentProjectId(null); setSelectedIds([]); }
     }
     setOpenProjectIds(filtered);
   };
-
   const createProjectWithName = (name) => {
     saveCurrentProjectIfAny();
     const id = uuidv4();
     const now = Date.now();
-    const project = { id, name, elements: [], bgColor: '#ffffff', canvasSize: { width: 800, height: 600 }, createdAt: now, updatedAt: now };
-    localStorage.setItem(`project_${id}`, JSON.stringify(project));
+    localStorage.setItem(`project_${id}`, JSON.stringify({ id, name, elements: [], bgColor: '#ffffff', canvasSize: { width: 800, height: 600 }, createdAt: now, updatedAt: now }));
     const newList = [...projects, { id, name, createdAt: now, updatedAt: now }];
     localStorage.setItem('projects', JSON.stringify(newList));
     setProjects(newList);
     openProject(id);
   };
-
   const handleCreateProject = async () => {
     const name = await showPrompt('Tên project mới:', `Dự án ${projects.length + 1}`);
     if (!name) return;
     createProjectWithName(name);
   };
-
   const handleExitProject = () => {
     saveCurrentProjectIfAny();
     setView('lobby');
     setCurrentProjectId(null);
-    setSelectedId(null);
+    setSelectedIds([]);
     setShowProjectMenu(false);
     setOpenProjectIds([]);
   };
-
   const handleNewTabProject = () => { setShowProjectMenu(false); handleCreateProject(); };
-
   const deleteProject = async (id) => {
     const ok = await showConfirm('Xoá project này? Không thể hoàn tác.');
     if (!ok) return;
@@ -1274,9 +1281,8 @@ function App() {
     localStorage.setItem('projects', JSON.stringify(newList));
     setProjects(newList);
     setOpenProjectIds(prev => prev.filter(p => p !== id));
-    if (currentProjectId === id) { setView('lobby'); setCurrentProjectId(null); setSelectedId(null); }
+    if (currentProjectId === id) { setView('lobby'); setCurrentProjectId(null); setSelectedIds([]); }
   };
-
   const renameProject = async (id) => {
     const project = projects.find(p => p.id === id);
     if (!project) return;
@@ -1293,8 +1299,7 @@ function App() {
     if (showAddTabPopup) { setShowAddTabPopup(false); return; }
     if (addTabBtnRef.current) {
       const rect = addTabBtnRef.current.getBoundingClientRect();
-      const POPUP_W = 280;
-      const PADDING = 8;
+      const POPUP_W = 280; const PADDING = 8;
       let left = rect.left;
       if (left + POPUP_W > window.innerWidth - PADDING) left = window.innerWidth - POPUP_W - PADDING;
       if (left < PADDING) left = PADDING;
@@ -1302,13 +1307,11 @@ function App() {
     }
     setShowAddTabPopup(true);
   };
-
   const openProjectMenu = () => {
     if (showProjectMenu) { setShowProjectMenu(false); return; }
     if (projectBtnRef.current) {
       const rect = projectBtnRef.current.getBoundingClientRect();
-      const POPUP_W = 230;
-      const PADDING = 8;
+      const POPUP_W = 230; const PADDING = 8;
       let left = rect.left;
       if (left + POPUP_W > window.innerWidth - PADDING) left = window.innerWidth - POPUP_W - PADDING;
       if (left < PADDING) left = PADDING;
@@ -1319,17 +1322,11 @@ function App() {
 
   const availableProjects = projects.filter(p => !openProjectIds.includes(p.id));
 
-  // 🔀 Convert shape → bentShape
   const convertToBentShape = () => {
     if (!selectedEl) return;
     if (SHAPE_BENDABLE.includes(selectedEl.type) && selectedEl.type !== 'bentShape') {
       const edgeCount = getEdgeCount(selectedEl);
-      const bentEl = {
-        ...selectedEl,
-        type: 'bentShape',
-        baseType: selectedEl.type,
-        bends: Array.from({ length: edgeCount }, () => ({ x: 0, y: 0 })),
-      };
+      const bentEl = { ...selectedEl, type: 'bentShape', baseType: selectedEl.type, bends: Array.from({ length: edgeCount }, () => ({ x: 0, y: 0 })) };
       saveToHistory(elements.map(it => it.id === selectedId ? bentEl : it));
       setBendMode(true);
     }
@@ -1339,61 +1336,116 @@ function App() {
     if (!bendMode || !selectedEl || selectedEl.type !== 'bentShape') return null;
     const midpoints = getEdgeMidpoints(selectedEl);
     const bends = selectedEl.bends || [];
-
     return midpoints.map((mp, i) => {
       const bend = bends[i] || { x: 0, y: 0 };
       return (
-        <Circle
-          key={`bp-${i}`}
-          x={mp.x + bend.x}
-          y={mp.y + bend.y}
-          radius={8 / stageScale}
-          fill="#fbbf24"
-          stroke="#1f2937"
-          strokeWidth={2 / stageScale}
-          draggable
+        <Circle key={`bp-${i}`} x={mp.x + bend.x} y={mp.y + bend.y} radius={8 / stageScale}
+          fill="#fbbf24" stroke="#1f2937" strokeWidth={2 / stageScale} draggable
           onMouseDown={(e) => { e.cancelBubble = true; }}
           onTouchStart={(e) => { e.cancelBubble = true; }}
           onDragMove={(e) => {
             const nb = { x: e.target.x() - mp.x, y: e.target.y() - mp.y };
-            const newBends = [...bends];
-            newBends[i] = nb;
-            const newElements = elementsRef.current.map(it =>
-              it.id === selectedEl.id ? { ...it, bends: newBends } : it
-            );
-            elementsRef.current = newElements;
-            setElements(newElements);
+            const newBends = [...bends]; newBends[i] = nb;
+            const newElements = elementsRef.current.map(it => it.id === selectedEl.id ? { ...it, bends: newBends } : it);
+            elementsRef.current = newElements; setElements(newElements);
           }}
           onDragEnd={() => {
             const latest = elementsRef.current;
             const newHistory = history.slice(0, historyStep + 1);
             newHistory.push(latest);
-            setHistory(newHistory);
-            setHistoryStep(newHistory.length - 1);
+            setHistory(newHistory); setHistoryStep(newHistory.length - 1);
           }}
-          onDblClick={(e) => {
-            e.cancelBubble = true;
-            const newBends = [...bends];
-            newBends[i] = { x: 0, y: 0 };
-            saveToHistory(elements.map(it =>
-              it.id === selectedEl.id ? { ...it, bends: newBends } : it
-            ));
-          }}
-          onDblTap={(e) => {
-            e.cancelBubble = true;
-            const newBends = [...bends];
-            newBends[i] = { x: 0, y: 0 };
-            saveToHistory(elements.map(it =>
-              it.id === selectedEl.id ? { ...it, bends: newBends } : it
-            ));
-          }}
-        />
+          onDblClick={(e) => { e.cancelBubble = true; const nb = [...bends]; nb[i] = { x: 0, y: 0 }; saveToHistory(elements.map(it => it.id === selectedEl.id ? { ...it, bends: nb } : it)); }}
+          onDblTap={(e) => { e.cancelBubble = true; const nb = [...bends]; nb[i] = { x: 0, y: 0 }; saveToHistory(elements.map(it => it.id === selectedEl.id ? { ...it, bends: nb } : it)); }} />
       );
     });
   };
 
+  // LAYERS PANEL
+  const renderLayersPanel = () => {
+    if (!showLayers) return null;
+    return (
+      <div style={{
+        position: 'absolute', top: '10px', right: '10px', width: '260px', maxHeight: '70%',
+        background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+        zIndex: 25, display: 'flex', flexDirection: 'column', overflow: 'hidden'
+      }}>
+        <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9fafb' }}>
+          <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 'bold' }}>☰ Layers ({elements.length})</h3>
+          <button onClick={() => setShowLayers(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>✕</button>
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          {elements.length === 0 && <div style={{ padding: '20px', fontSize: '12px', color: '#9ca3af', textAlign: 'center' }}>Chưa có layer nào</div>}
+          {[...elements].reverse().map(el => {
+            const isSel = selectedIds.includes(el.id);
+            let icon = '📦';
+            let name = el.type;
+            if (el.type === 'text') { icon = 'T'; name = el.text?.slice(0, 20) || 'Text'; }
+            else if (el.type === 'image') { icon = '🖼️'; name = 'Ảnh'; }
+            else if (el.type === 'rect') { icon = '▭'; name = 'Chữ nhật'; }
+            else if (el.type === 'circle') { icon = '●'; name = 'Tròn'; }
+            else if (el.type === 'polygon') { icon = '⬟'; name = `${el.sides || 5} giác`; }
+            else if (el.type === 'star') { icon = '★'; name = `${el.numPoints || 5} cánh`; }
+            else if (el.type === 'arrow') { icon = '→'; name = 'Mũi tên'; }
+            else if (el.type === 'path') { icon = '〰️'; name = 'Path'; }
+            else if (el.type === 'icon') { icon = '⚡'; name = 'Icon'; }
+            else if (el.type === 'brush') { icon = '✏️'; name = 'Bút vẽ'; }
+            else if (el.type === 'bentShape') { icon = '🔀'; name = 'Bent shape'; }
+            return (
+              <div key={el.id} onClick={() => setSelectedIds([el.id])} style={{
+                display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px',
+                cursor: 'pointer', fontSize: '12px',
+                background: isSel ? '#dbeafe' : 'transparent',
+                borderBottom: '1px solid #f3f4f6'
+              }}
+                onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = '#f9fafb'; }}
+                onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}>
+                <span style={{ fontSize: '14px', flexShrink: 0 }}>{icon}</span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isSel ? 'bold' : 'normal' }}>{name}</span>
+                <button onClick={(e) => { e.stopPropagation(); updateElement(el.id, { visible: el.visible === false ? true : false }); }}
+                  title={el.visible === false ? 'Hiện' : 'Ẩn'}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', opacity: el.visible === false ? 0.3 : 1 }}>
+                  {el.visible === false ? '🙈' : '👁️'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderProperties = () => {
-    if (!selectedId || !selectedEl || currentTool !== 'select' || isRulerMode) return null;
+    if (selectedIds.length === 0 || currentTool !== 'select' || isRulerMode) return null;
+    if (multiSelect) {
+      return (
+        <div style={{ padding: '15px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <h2 style={{ fontSize: '16px', margin: 0 }}>Đã chọn {selectedIds.length} vật thể</h2>
+            <button onClick={() => setIsRightOpen(false)} style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '18px', padding: '0 5px' }}>✕</button>
+          </div>
+          <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '10px' }}>Kéo bất kỳ vật thể nào để di chuyển cả cụm</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '5px', marginBottom: '15px' }}>
+            <button onClick={() => alignSelected('left')} title="Căn trái" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>⇤ Trái</button>
+            <button onClick={() => alignSelected('center-h')} title="Căn giữa ngang" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>↔ Giữa</button>
+            <button onClick={() => alignSelected('right')} title="Căn phải" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>Phải ⇥</button>
+            <button onClick={() => alignSelected('top')} title="Căn trên" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>⇡ Trên</button>
+            <button onClick={() => alignSelected('center-v')} title="Căn giữa dọc" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>↕ Giữa</button>
+            <button onClick={() => alignSelected('bottom')} title="Căn dưới" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>⇣ Dưới</button>
+          </div>
+          <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
+            <button onClick={() => centerSelected()} style={{ flex: 1, padding: '8px', background: '#bfdbfe', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Căn Giữa Canvas</button>
+            <button onClick={duplicateSelected} style={{ flex: 1, padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Nhân bản</button>
+          </div>
+          <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
+            <button onClick={() => moveLayer('up')} style={{ flex: 1, padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Lên trên</button>
+            <button onClick={() => moveLayer('down')} style={{ flex: 1, padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Xuống dưới</button>
+          </div>
+          <button onClick={deleteSelected} style={{ marginTop: 'auto', padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Xoá {selectedIds.length} vật thể</button>
+        </div>
+      );
+    }
+    if (!selectedEl) return null;
     return (
       <div style={{ padding: '15px', height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -1417,7 +1469,6 @@ function App() {
                 <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px', padding: '8px 0' }} onClick={duplicateSelected}>Nhân bản</button>
               </div>
 
-              {/* Text controls */}
               {selectedEl.type === 'text' && (
                 <div style={{ marginBottom: '15px' }}>
                   <div className="input-group" style={{ marginBottom: '10px' }}>
@@ -1443,60 +1494,58 @@ function App() {
                     <button className="btn" style={{ flex: 1, textDecoration: 'underline', background: selectedEl.textDecoration === 'underline' ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { textDecoration: selectedEl.textDecoration === 'underline' ? '' : 'underline' })}>U</button>
                   </div>
 
-                  {/* 🔀 Bend Text */}
-                  <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '6px', marginTop: '10px' }}>
+                  {/* ✅ TEXT STROKE */}
+                  <div style={{ background: '#dbeafe', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                      <input type="checkbox" checked={selectedEl.textStrokeEnabled || false} onChange={(e) => updateElement(selectedId, { textStrokeEnabled: e.target.checked })} />
+                      <label style={{ fontWeight: 'bold', fontSize: '13px' }}>Viền chữ</label>
+                    </div>
+                    {selectedEl.textStrokeEnabled && (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px' }}>
+                          <label style={{ fontSize: '12px' }}>Màu viền:</label>
+                          <input type="color" value={selectedEl.textStrokeColor || '#000000'} onChange={(e) => updateElement(selectedId, { textStrokeColor: e.target.value })} style={{ width: '30px', height: '25px' }} />
+                        </div>
+                        <label style={{ fontSize: '12px' }}>Độ dày: {selectedEl.textStrokeWidth || 0}px</label>
+                        <input type="range" min="0" max="10" value={selectedEl.textStrokeWidth || 0} onChange={(e) => updateElement(selectedId, { textStrokeWidth: parseInt(e.target.value) })} style={{ width: '100%' }} />
+                      </>
+                    )}
+                  </div>
+
+                  {/* 🔀 BEND TEXT */}
+                  <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '6px' }}>
                     <h4 style={{ fontWeight: 'bold', color: '#92400e', marginBottom: '10px', fontSize: '14px' }}>🔀 Bẻ cong chữ</h4>
                     <label style={{ fontSize: '13px' }}>Độ cong: {selectedEl.bendAmount || 0}%</label>
-                    <input type="range" min="-100" max="100" value={selectedEl.bendAmount || 0}
-                      onChange={(e) => updateElement(selectedId, { bendAmount: parseInt(e.target.value) })}
-                      style={{ width: '100%', marginBottom: '8px' }} />
-                    <button className="btn" style={{ width: '100%', background: '#fde68a', fontSize: '12px', padding: '6px' }}
-                      onClick={() => updateElement(selectedId, { bendAmount: 0 })}>
-                      ⟲ Reset về thẳng
-                    </button>
+                    <input type="range" min="-100" max="100" value={selectedEl.bendAmount || 0} onChange={(e) => updateElement(selectedId, { bendAmount: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '8px' }} />
+                    <button className="btn" style={{ width: '100%', background: '#fde68a', fontSize: '12px', padding: '6px' }} onClick={() => updateElement(selectedId, { bendAmount: 0 })}>⟲ Reset về thẳng</button>
                   </div>
                 </div>
               )}
 
-              {/* 🔀 Bend Shape section */}
               {SHAPE_BENDABLE.includes(selectedEl.type) && (
                 <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
                   <h4 style={{ fontWeight: 'bold', color: '#92400e', marginBottom: '10px', fontSize: '14px' }}>🔀 Bẻ cong shape</h4>
                   {!bendMode && selectedEl.type !== 'bentShape' && (
-                    <button className="btn" style={{ width: '100%', background: '#fbbf24', fontWeight: 'bold', padding: '10px' }}
-                      onClick={convertToBentShape}>
-                      ✏️ Bật chế độ bẻ cong
-                    </button>
+                    <button className="btn" style={{ width: '100%', background: '#fbbf24', fontWeight: 'bold', padding: '10px' }} onClick={convertToBentShape}>✏️ Bật chế độ bẻ cong</button>
                   )}
                   {!bendMode && selectedEl.type === 'bentShape' && (
-                    <button className="btn" style={{ width: '100%', background: '#fbbf24', fontWeight: 'bold', padding: '10px' }}
-                      onClick={() => setBendMode(true)}>
-                      ✏️ Chỉnh sửa độ cong
-                    </button>
+                    <button className="btn" style={{ width: '100%', background: '#fbbf24', fontWeight: 'bold', padding: '10px' }} onClick={() => setBendMode(true)}>✏️ Chỉnh sửa độ cong</button>
                   )}
                   {bendMode && (
                     <>
                       <p style={{ fontSize: '12px', color: '#92400e', marginBottom: '8px', lineHeight: 1.4 }}>
-                        💡 Kéo các <strong>điểm vàng</strong> trên canvas để bẻ cong.<br />
-                        Double-click điểm để reset cạnh đó.
+                        💡 Kéo <strong>điểm vàng</strong> trên canvas · Double-click để reset cạnh
                       </p>
-                      <button className="btn" style={{ width: '100%', background: '#10b981', color: 'white', fontWeight: 'bold', marginBottom: '6px', padding: '10px' }}
-                        onClick={() => setBendMode(false)}>
-                        ✓ Xong
-                      </button>
-                      <button className="btn" style={{ width: '100%', background: '#fee2e2', color: '#ef4444', fontSize: '12px', padding: '6px' }}
-                        onClick={() => {
-                          const newBends = (selectedEl.bends || []).map(() => ({ x: 0, y: 0 }));
-                          saveToHistory(elements.map(it => it.id === selectedId ? { ...it, bends: newBends } : it));
-                        }}>
-                        ⟲ Reset tất cả cạnh
-                      </button>
+                      <button className="btn" style={{ width: '100%', background: '#10b981', color: 'white', fontWeight: 'bold', marginBottom: '6px', padding: '10px' }} onClick={() => setBendMode(false)}>✓ Xong</button>
+                      <button className="btn" style={{ width: '100%', background: '#fee2e2', color: '#ef4444', fontSize: '12px', padding: '6px' }} onClick={() => {
+                        const nb = (selectedEl.bends || []).map(() => ({ x: 0, y: 0 }));
+                        saveToHistory(elements.map(it => it.id === selectedId ? { ...it, bends: nb } : it));
+                      }}>⟲ Reset tất cả cạnh</button>
                     </>
                   )}
                 </div>
               )}
 
-              {/* Shape params */}
               {['rect', 'circle', 'polygon', 'star', 'bentShape'].includes(selectedEl.type) && (
                 <div style={{ background: '#e0e7ff', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
                   <h4 style={{ fontWeight: 'bold', color: '#3730a3', marginBottom: '10px', fontSize: '14px' }}>Tùy chỉnh hình</h4>
@@ -1506,20 +1555,62 @@ function App() {
                   )}
                   {getBaseType(selectedEl) === 'polygon' && (
                     <><label style={{ fontSize: '13px' }}>Số cạnh: {selectedEl.sides}</label><input type="range" min="3" max="20" value={selectedEl.sides || 3} onChange={(e) => {
-                      const newSides = parseInt(e.target.value);
-                      const newBends = Array.from({ length: newSides }, (_, i) => (selectedEl.bends && selectedEl.bends[i]) || { x: 0, y: 0 });
-                      updateElement(selectedId, { sides: newSides, bends: selectedEl.type === 'bentShape' ? newBends : selectedEl.bends });
+                      const ns = parseInt(e.target.value);
+                      const nb = Array.from({ length: ns }, (_, i) => (selectedEl.bends && selectedEl.bends[i]) || { x: 0, y: 0 });
+                      updateElement(selectedId, { sides: ns, bends: selectedEl.type === 'bentShape' ? nb : selectedEl.bends });
                     }} style={{ width: '100%', marginBottom: '10px' }} /></>
                   )}
                   {getBaseType(selectedEl) === 'star' && (
                     <>
                       <label style={{ fontSize: '13px' }}>Số góc: {selectedEl.numPoints}</label><input type="range" min="3" max="20" value={selectedEl.numPoints || 5} onChange={(e) => {
                         const n = parseInt(e.target.value);
-                        const newBends = Array.from({ length: n * 2 }, (_, i) => (selectedEl.bends && selectedEl.bends[i]) || { x: 0, y: 0 });
-                        updateElement(selectedId, { numPoints: n, bends: selectedEl.type === 'bentShape' ? newBends : selectedEl.bends });
+                        const nb = Array.from({ length: n * 2 }, (_, i) => (selectedEl.bends && selectedEl.bends[i]) || { x: 0, y: 0 });
+                        updateElement(selectedId, { numPoints: n, bends: selectedEl.type === 'bentShape' ? nb : selectedEl.bends });
                       }} style={{ width: '100%', marginBottom: '10px' }} />
                       <label style={{ fontSize: '13px' }}>Độ nhọn:</label><input type="range" min="10" max={selectedEl.outerRadius - 5} value={selectedEl.innerRadius || 40} onChange={(e) => updateElement(selectedId, { innerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
                     </>
+                  )}
+                </div>
+              )}
+
+              {/* STROKE DASH */}
+              {['rect', 'circle', 'polygon', 'star', 'bentShape', 'arrow'].includes(selectedEl.type) && (
+                <div style={{ background: '#fce7f3', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
+                  <h4 style={{ fontWeight: 'bold', color: '#831843', marginBottom: '10px', fontSize: '14px' }}>〰️ Nét viền</h4>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                    <input type="checkbox" checked={selectedEl.dashEnabled || false} onChange={(e) => updateElement(selectedId, { dashEnabled: e.target.checked })} />
+                    <label style={{ fontWeight: 'bold', fontSize: '13px' }}>Nét đứt</label>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', marginBottom: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '11px' }}>Đầu nét:</label>
+                      <select value={selectedEl.lineCap || 'butt'} onChange={(e) => updateElement(selectedId, { lineCap: e.target.value })} style={{ width: '100%', padding: '4px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc' }}>
+                        <option value="butt">Phẳng</option>
+                        <option value="round">Tròn</option>
+                        <option value="square">Vuông</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '11px' }}>Nối nét:</label>
+                      <select value={selectedEl.lineJoin || 'miter'} onChange={(e) => updateElement(selectedId, { lineJoin: e.target.value })} style={{ width: '100%', padding: '4px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc' }}>
+                        <option value="miter">Nhọn</option>
+                        <option value="round">Tròn</option>
+                        <option value="bevel">Vát</option>
+                      </select>
+                    </div>
+                  </div>
+                  {selectedEl.dashEnabled && (
+                    <div>
+                      <label style={{ fontSize: '12px' }}>Mẫu nét đứt:</label>
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                        {[[5,5],[10,5],[15,5],[3,3],[20,10]].map((pat, i) => (
+                          <button key={i} onClick={() => updateElement(selectedId, { dashPattern: pat })}
+                            style={{ flex: 1, padding: '5px', background: JSON.stringify(selectedEl.dashPattern) === JSON.stringify(pat) ? '#bfdbfe' : '#fff', border: '1px solid #ccc', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}>
+                            {pat.join('-')}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -1547,9 +1638,9 @@ function App() {
                   </div>
                   <label style={{ fontSize: '12px' }}>Độ mờ bóng: {selectedEl.shadowBlur ?? 10}px</label>
                   <input type="range" min="0" max="50" value={selectedEl.shadowBlur ?? 10} onChange={(e) => updateElement(selectedId, { shadowBlur: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '5px' }} />
-                  <label style={{ fontSize: '12px' }}>Khoảng cách X: {selectedEl.shadowOffsetX ?? 5}px</label>
+                  <label style={{ fontSize: '12px' }}>X: {selectedEl.shadowOffsetX ?? 5}px</label>
                   <input type="range" min="-20" max="20" value={selectedEl.shadowOffsetX ?? 5} onChange={(e) => updateElement(selectedId, { shadowOffsetX: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '5px' }} />
-                  <label style={{ fontSize: '12px' }}>Khoảng cách Y: {selectedEl.shadowOffsetY ?? 5}px</label>
+                  <label style={{ fontSize: '12px' }}>Y: {selectedEl.shadowOffsetY ?? 5}px</label>
                   <input type="range" min="-20" max="20" value={selectedEl.shadowOffsetY ?? 5} onChange={(e) => updateElement(selectedId, { shadowOffsetY: parseInt(e.target.value) })} style={{ width: '100%' }} />
                 </div>
               )}
@@ -1559,7 +1650,7 @@ function App() {
             <div>
               {['text', 'rect', 'circle', 'polygon', 'star', 'path', 'icon', 'bentShape'].includes(selectedEl.type) && (
                 <div style={{ marginBottom: '15px' }}>
-                  <label style={{ fontSize: '13px' }}>Màu nền:</label>
+                  <label style={{ fontSize: '13px' }}>{selectedEl.type === 'text' ? 'Màu chữ' : 'Màu nền'}:</label>
                   <input type="color" value={selectedEl.fill === 'transparent' ? '#ffffff' : selectedEl.fill} onChange={(e) => updateElement(selectedId, { fill: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
                   {['rect', 'circle', 'polygon', 'star', 'path', 'icon', 'bentShape'].includes(selectedEl.type) && (
                     <>
@@ -1574,22 +1665,17 @@ function App() {
             </div>
           )}
         </div>
-        <button onClick={deleteSelected} style={{ marginTop: '10px', padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-          Xoá vật thể này
-        </button>
+        <button onClick={deleteSelected} style={{ marginTop: '10px', padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Xoá vật thể này</button>
       </div>
     );
   };
 
-  // ==================== LOBBY ====================
   if (view === 'lobby') {
     return (
       <div style={{ minHeight: '100vh', background: '#f5f5f7', padding: '40px 20px' }}>
         <div style={{ maxWidth: '960px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-            <h1 style={{ color: '#1f2937', fontSize: '48px', marginBottom: '8px' }}>
-              <span style={{ color: '#8b5cf6' }}>Pixel</span>Craft
-            </h1>
+            <h1 style={{ color: '#1f2937', fontSize: '48px', marginBottom: '8px' }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h1>
             <p style={{ color: '#6b7280', fontSize: '16px' }}>Chọn project để tiếp tục, hoặc tạo project mới</p>
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '36px' }}>
@@ -1605,9 +1691,7 @@ function App() {
                 onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.05)'; }}>
                 <div style={{ fontSize: '30px', marginBottom: '10px' }}>📄</div>
                 <h3 style={{ margin: '0 0 6px', color: '#1f2937', fontSize: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</h3>
-                <p style={{ margin: 0, color: '#6b7280', fontSize: '12px' }}>
-                  {new Date(p.updatedAt).toLocaleDateString('vi-VN')} · {new Date(p.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                </p>
+                <p style={{ margin: 0, color: '#6b7280', fontSize: '12px' }}>{new Date(p.updatedAt).toLocaleDateString('vi-VN')} · {new Date(p.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</p>
                 <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '4px' }}>
                   <button onClick={e => { e.stopPropagation(); renameProject(p.id); }} title="Đổi tên" style={{ background: '#dbeafe', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontSize: '13px' }}>✏️</button>
                   <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }} title="Xoá" style={{ background: '#fee2e2', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontSize: '13px' }}>🗑️</button>
@@ -1621,8 +1705,7 @@ function App() {
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
             <div style={{ background: 'white', borderRadius: '10px', padding: '20px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
               <h3 style={{ margin: '0 0 15px', fontSize: '16px', color: '#1f2937' }}>{promptState.title}</h3>
-              <input autoFocus type="text" value={promptState.value}
-                onChange={(e) => setPromptState({ ...promptState, value: e.target.value })}
+              <input autoFocus type="text" value={promptState.value} onChange={(e) => setPromptState({ ...promptState, value: e.target.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter') handlePromptConfirm(); if (e.key === 'Escape') handlePromptCancel(); }}
                 style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', boxSizing: 'border-box', outline: 'none' }} />
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
@@ -1632,7 +1715,6 @@ function App() {
             </div>
           </div>
         )}
-
         {confirmState && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
             <div style={{ background: 'white', borderRadius: '10px', padding: '20px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
@@ -1648,20 +1730,10 @@ function App() {
     );
   }
 
-  // ==================== EDITOR ====================
   return (
     <div className="app-container" style={{ flexDirection: 'column' }} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-      {isDragging && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(59, 130, 246, 0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', border: '10px dashed white', boxSizing: 'border-box' }}>
-          <h2 style={{ color: 'white', fontSize: '32px' }}>Thả file Ảnh hoặc .json vào đây!</h2>
-        </div>
-      )}
-      {isProcessing && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white' }}>
-          <div style={{ border: '5px solid #f3f3f3', borderTop: '5px solid #8b5cf6', borderRadius: '50%', width: '60px', height: '60px', animation: 'spin 1s linear infinite' }}></div>
-          <h3 style={{ marginTop: '20px', fontSize: '22px' }}>{processingText}</h3>
-        </div>
-      )}
+      {isDragging && <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(59, 130, 246, 0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', border: '10px dashed white', boxSizing: 'border-box' }}><h2 style={{ color: 'white', fontSize: '32px' }}>Thả file Ảnh hoặc .json vào đây!</h2></div>}
+      {isProcessing && <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white' }}><div style={{ border: '5px solid #f3f3f3', borderTop: '5px solid #8b5cf6', borderRadius: '50%', width: '60px', height: '60px', animation: 'spin 1s linear infinite' }}></div><h3 style={{ marginTop: '20px', fontSize: '22px' }}>{processingText}</h3></div>}
 
       {/* TASKBAR */}
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', background: '#d1d5db', padding: '6px 10px 0', overflowX: 'auto', flexShrink: 0, borderBottom: '1px solid #9ca3af', minHeight: '36px', position: 'relative', WebkitOverflowScrolling: 'touch' }}>
@@ -1675,60 +1747,33 @@ function App() {
               background: isActive ? '#fff' : '#e5e7eb', color: '#1f2937',
               borderRadius: '6px 6px 0 0', cursor: 'pointer', fontSize: '12px',
               fontWeight: isActive ? 'bold' : 'normal', maxWidth: '180px', minWidth: '80px',
-              whiteSpace: 'nowrap', flexShrink: 0,
-              boxShadow: isActive ? 'inset 0 2px 0 #3b82f6' : 'none'
+              whiteSpace: 'nowrap', flexShrink: 0, boxShadow: isActive ? 'inset 0 2px 0 #3b82f6' : 'none'
             }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{proj.name}</span>
-              <button onClick={(e) => { e.stopPropagation(); closeProjectTab(id); }} title="Đóng tab"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '16px', padding: '0 2px', lineHeight: 1, display: 'flex', alignItems: 'center' }}>×</button>
+              <button onClick={(e) => { e.stopPropagation(); closeProjectTab(id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '16px', padding: '0 2px', lineHeight: 1, display: 'flex', alignItems: 'center' }}>×</button>
             </div>
           );
         })}
         <button ref={addTabBtnRef} onClick={openAddTabPopup} title="Thêm tab"
-          style={{
-            padding: '5px 12px',
-            background: showAddTabPopup ? '#3b82f6' : 'rgba(255,255,255,0.4)',
-            color: showAddTabPopup ? '#fff' : '#374151',
-            border: '1px solid #9ca3af', borderRadius: '4px 4px 0 0',
-            cursor: 'pointer', fontSize: '16px', fontWeight: 'bold',
-            marginLeft: '4px', lineHeight: 1, flexShrink: 0
-          }}>+</button>
+          style={{ padding: '5px 12px', background: showAddTabPopup ? '#3b82f6' : 'rgba(255,255,255,0.4)', color: showAddTabPopup ? '#fff' : '#374151', border: '1px solid #9ca3af', borderRadius: '4px 4px 0 0', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', marginLeft: '4px', lineHeight: 1, flexShrink: 0 }}>+</button>
       </div>
 
-      {/* Popup thêm tab */}
+      {/* Popups */}
       {showAddTabPopup && (
         <>
           <div onClick={() => setShowAddTabPopup(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-          <div style={{
-            position: 'fixed', top: addTabPopupPos.top, left: addTabPopupPos.left,
-            background: 'white', border: '1px solid #ddd', borderRadius: '8px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.2)', width: '280px',
-            zIndex: 999, overflow: 'hidden'
-          }}>
-            <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}>
-              <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Thêm tab</div>
-            </div>
-            <button onClick={() => { setShowAddTabPopup(false); handleCreateProject(); }}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '12px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', color: '#10b981', borderBottom: '1px solid #eee' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#ecfdf5'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-              <span style={{ fontSize: '18px' }}>✨</span>
-              <span>Tạo project mới</span>
-            </button>
+          <div style={{ position: 'fixed', top: addTabPopupPos.top, left: addTabPopupPos.left, background: 'white', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.2)', width: '280px', zIndex: 999, overflow: 'hidden' }}>
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}><div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Thêm tab</div></div>
+            <button onClick={() => { setShowAddTabPopup(false); handleCreateProject(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '12px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', color: '#10b981', borderBottom: '1px solid #eee' }}><span style={{ fontSize: '18px' }}>✨</span><span>Tạo project mới</span></button>
             <div style={{ padding: '8px 14px 4px', fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f3f4f6' }}>Dùng project có sẵn</div>
             <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
               {availableProjects.length === 0 ? (
                 <div style={{ padding: '14px', fontSize: '12px', color: '#9ca3af', fontStyle: 'italic', textAlign: 'center' }}>Không còn project nào</div>
               ) : (
                 availableProjects.map(p => (
-                  <button key={p.id} onClick={() => { setShowAddTabPopup(false); openProject(p.id); }}
-                    style={{ display: 'block', width: '100%', padding: '10px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '13px', color: '#1f2937', borderBottom: '1px solid #f9fafb' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                  <button key={p.id} onClick={() => { setShowAddTabPopup(false); openProject(p.id); }} style={{ display: 'block', width: '100%', padding: '10px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '13px', color: '#1f2937', borderBottom: '1px solid #f9fafb' }}>
                     <div style={{ fontWeight: '500', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-                      {new Date(p.updatedAt).toLocaleDateString('vi-VN')} · {new Date(p.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                    </div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>{new Date(p.updatedAt).toLocaleDateString('vi-VN')} · {new Date(p.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
                   </button>
                 ))
               )}
@@ -1737,21 +1782,13 @@ function App() {
         </>
       )}
 
-      {/* Popup Project */}
       {showProjectMenu && (
         <>
           <div onClick={() => setShowProjectMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-          <div style={{
-            position: 'fixed', top: projectMenuPos.top, left: projectMenuPos.left,
-            background: 'white', border: '1px solid #ddd', borderRadius: '8px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.2)', minWidth: '230px',
-            zIndex: 999, overflow: 'hidden'
-          }}>
+          <div style={{ position: 'fixed', top: projectMenuPos.top, left: projectMenuPos.left, background: 'white', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.2)', minWidth: '230px', zIndex: 999, overflow: 'hidden' }}>
             <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}>
               <div style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Project hiện tại</div>
-              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1f2937', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {projects.find(p => p.id === currentProjectId)?.name || 'Untitled'}
-              </div>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1f2937', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{projects.find(p => p.id === currentProjectId)?.name || 'Untitled'}</div>
             </div>
             <button onClick={() => { setShowProjectMenu(false); handleExitProject(); }} style={PROJECT_MENU_ITEM_STYLE}>🚪 Thoát project</button>
             <button onClick={handleNewTabProject} style={PROJECT_MENU_ITEM_STYLE}>🆕 New tab project</button>
@@ -1771,19 +1808,10 @@ function App() {
         WebkitOverflowScrolling: 'touch'
       }}>
         <div style={{ display: 'flex', gap: isMobile ? '8px' : '10px', alignItems: 'center', flexWrap: isMobile ? 'nowrap' : 'wrap', flexShrink: 0 }}>
-          <button
-            ref={projectBtnRef}
-            onClick={openProjectMenu}
-            style={{
-              padding: '5px 10px', fontSize: '12px', fontWeight: 'bold',
-              borderRadius: '4px', border: '1px solid #ccc',
-              background: showProjectMenu ? '#3b82f6' : '#fff',
-              color: showProjectMenu ? '#fff' : '#333',
-              display: 'flex', alignItems: 'center', gap: '5px',
-              cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0
-            }}
-            title="Quản lý project">📁 Project</button>
-
+          <button ref={projectBtnRef} onClick={openProjectMenu}
+            style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: showProjectMenu ? '#3b82f6' : '#fff', color: showProjectMenu ? '#fff' : '#333', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>📁 Project</button>
+          <button onClick={() => setShowLayers(!showLayers)}
+            style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: showLayers ? '#3b82f6' : '#fff', color: showLayers ? '#fff' : '#333', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>☰ Layers</button>
           <h2 style={{ fontSize: '18px', color: '#1f2937', margin: 0, fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0 }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
           <select value={`${canvasSize.width}x${canvasSize.height}`} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); setCanvasSize({ width: w, height: h }); }} style={{ padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}>
             <option value="800x600">800x600</option>
@@ -1803,8 +1831,7 @@ function App() {
               <input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} style={{ width: '25px', height: '25px', padding: 0, border: 'none' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', position: 'relative' }}>
-              <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
-                Độ dày
+              <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>Độ dày
                 <span onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)} style={{ color: '#3b82f6', borderRadius: '50%', border: '1px solid #3b82f6', width: '14px', height: '14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', cursor: 'help' }}>i</span>
               </label>
               {showTooltip && (<div style={{ position: 'absolute', top: '25px', left: '-20px', background: '#333', color: 'white', padding: '5px 10px', borderRadius: '5px', fontSize: '12px', whiteSpace: 'nowrap', zIndex: 1000 }}>Chỉnh độ dày của bút vẽ và thước kẻ</div>)}
@@ -1814,13 +1841,19 @@ function App() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0 }}>
-          <button onClick={saveProject} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333', whiteSpace: 'nowrap' }} title="Lưu file thiết kế (.json)">💾 Lưu Dự Án</button>
-          <button onClick={() => fileInputRef.current.click()} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333', whiteSpace: 'nowrap' }} title="Mở file thiết kế (.json)">📂 Mở Dự Án</button>
+          <button onClick={saveProject} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333', whiteSpace: 'nowrap' }}>💾 Lưu</button>
+          <button onClick={() => fileInputRef.current.click()} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333', whiteSpace: 'nowrap' }}>📂 Mở</button>
           <input type="file" accept=".json" ref={fileInputRef} onChange={loadProject} style={{ display: 'none' }} />
           <button onClick={handleUndo} disabled={historyStep <= 0} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: historyStep <= 0 ? 'not-allowed' : 'pointer' }}>↩</button>
           <button onClick={handleRedo} disabled={historyStep >= history.length - 1} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: historyStep >= history.length - 1 ? 'not-allowed' : 'pointer' }}>↪</button>
-          <button onClick={handleReset} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ef4444', background: '#fee2e2', color: '#ef4444', whiteSpace: 'nowrap' }}>Xoá hết</button>
-          <button className="btn btn-success" onClick={exportPng} style={{ padding: '5px 12px', fontSize: '12px', whiteSpace: 'nowrap' }}>Tải Ảnh PNG</button>
+          <button onClick={handleReset} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ef4444', background: '#fee2e2', color: '#ef4444', whiteSpace: 'nowrap' }}>Xoá</button>
+          <select value={exportScale} onChange={(e) => setExportScale(parseInt(e.target.value))} style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold' }}>
+            <option value={1}>1x</option>
+            <option value={2}>2x</option>
+            <option value={3}>3x</option>
+            <option value={4}>4x</option>
+          </select>
+          <button className="btn btn-success" onClick={exportPng} style={{ padding: '5px 12px', fontSize: '12px', whiteSpace: 'nowrap' }}>Tải PNG</button>
         </div>
       </div>
 
@@ -1874,52 +1907,17 @@ function App() {
 
         {/* CANVAS */}
         <div ref={mainAreaRef} className="main-area" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#e5e7eb', touchAction: 'none', minHeight: 0 }}>
-          {!isLeftOpen && (
-            <button onClick={() => setIsLeftOpen(true)} style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>📚</button>
-          )}
-
-          {selectedId && isMobile && !bendMode && (
-            <button onClick={() => setSelectedId(null)} title="Bỏ chọn"
-              style={{
-                position: 'absolute', top: '10px', right: '10px',
-                background: 'white', border: '1px solid #d1d5db', borderRadius: '50%',
-                width: '40px', height: '40px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                zIndex: 20, fontSize: '16px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0
-              }}>✕</button>
-          )}
-
-          {isMobile && mobileDragHint && selectedId && !bendMode && (
-            <div style={{
-              position: 'absolute', top: '60px', left: '50%', transform: 'translateX(-50%)',
-              background: 'rgba(31,41,55,0.9)', color: 'white', padding: '8px 14px',
-              borderRadius: '20px', fontSize: '12px', fontWeight: '500',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 21,
-              pointerEvents: 'none', whiteSpace: 'nowrap'
-            }}>
-              👆 Chạm lần 2 để kéo
-            </div>
-          )}
-
-          {/* 🔀 Bend mode hint */}
-          {bendMode && (
-            <div style={{
-              position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)',
-              background: 'rgba(251,191,36,0.95)', color: '#78350f', padding: '8px 16px',
-              borderRadius: '20px', fontSize: '12px', fontWeight: 'bold',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 22,
-              pointerEvents: 'none', whiteSpace: 'nowrap'
-            }}>
-              🔀 Kéo điểm vàng để bẻ cong · Double-click để reset
-            </div>
-          )}
+          {!isLeftOpen && <button onClick={() => setIsLeftOpen(true)} style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>📚</button>}
+          {selectedIds.length > 0 && isMobile && !bendMode && <button onClick={() => setSelectedIds([])} title="Bỏ chọn" style={{ position: 'absolute', top: '10px', right: '10px', background: 'white', border: '1px solid #d1d5db', borderRadius: '50%', width: '40px', height: '40px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 20, fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>✕</button>}
+          {isMobile && mobileDragHint && selectedIds.length > 0 && !bendMode && <div style={{ position: 'absolute', top: '60px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(31,41,55,0.9)', color: 'white', padding: '8px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '500', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 21, pointerEvents: 'none', whiteSpace: 'nowrap' }}>👆 Chạm lần 2 để kéo</div>}
+          {bendMode && <div style={{ position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(251,191,36,0.95)', color: '#78350f', padding: '8px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 22, pointerEvents: 'none', whiteSpace: 'nowrap' }}>🔀 Kéo điểm vàng để bẻ cong · Double-click để reset</div>}
 
           <Stage
             width={mainAreaSize.width} height={mainAreaSize.height}
             onWheel={handleWheel} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
             onMouseDown={handleStageMouseDown} onMousemove={handleStageMouseMove} onMouseup={handleStageMouseUp} onTouchStart={handleStageMouseDown}
-            onClick={(e) => { if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current && !bendMode) setSelectedId(null); }}
-            onTap={(e) => { if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current && !bendMode) setSelectedId(null); }}
+            onClick={(e) => { if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current && !bendMode) setSelectedIds([]); }}
+            onTap={(e) => { if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current && !bendMode) setSelectedIds([]); }}
             onDragStart={(e) => { if (e.target === e.target.getStage()) isCanvasDragging.current = true; }}
             onDragEnd={(e) => {
               if (e.target === e.target.getStage()) {
@@ -1940,96 +1938,60 @@ function App() {
               <Rect width={canvasSize.width} height={canvasSize.height} fill={bgColor} shadowColor="#000" shadowBlur={20} shadowOpacity={0.2} listening={false} />
               {elements.map(renderShape)}
               {isRulerMode && tempLine && <Line x={tempLine.x} y={tempLine.y} points={tempLine.points} stroke={brushColor} strokeWidth={brushSize} dash={[10, 5]} />}
-              <Transformer ref={trRef} keepRatio={['circle', 'star', 'text', 'path', 'icon', 'polygon', 'arrow'].includes(selectedEl?.type)}
+              <Transformer ref={trRef} keepRatio={false}
                 anchorSize={isMobile ? 28 : 22} anchorCornerRadius={isMobile ? 14 : 10} anchorStroke="#3b82f6" anchorStrokeWidth={2} anchorFill="#ffffff" borderStroke="#3b82f6" borderStrokeWidth={2} rotateAnchorOffset={isMobile ? 48 : 40} ignoreStroke={true}
                 boundBoxFunc={(oldBox, newBox) => { if (newBox.width < 20 || newBox.height < 20) return oldBox; return newBox; }} />
             </Layer>
 
-            {/* 🔀 Bend control points layer */}
             {bendMode && selectedEl && selectedEl.type === 'bentShape' && (
               <Layer>
-                <Group
-                  x={selectedEl.x || 0} y={selectedEl.y || 0}
-                  rotation={selectedEl.rotation || 0}
-                  scaleX={selectedEl.scaleX || 1}
-                  scaleY={selectedEl.scaleY || 1}
-                >
+                <Group x={selectedEl.x || 0} y={selectedEl.y || 0} rotation={selectedEl.rotation || 0} scaleX={selectedEl.scaleX || 1} scaleY={selectedEl.scaleY || 1}>
                   {renderBendControlPoints()}
                 </Group>
               </Layer>
             )}
           </Stage>
 
-          {/* ZOOM POPUP */}
-          {zoomPopupPos.y !== null && (
-            <div
-              onMouseDown={handleZoomPopupDragStart}
-              onTouchStart={handleZoomPopupDragStart}
-              style={{
-                position: 'absolute', left: zoomPopupPos.x, top: zoomPopupPos.y,
-                background: 'white', padding: '6px 8px', borderRadius: '10px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                display: 'flex', gap: '4px', alignItems: 'center',
-                zIndex: 20, userSelect: 'none',
-                cursor: isDraggingZoom ? 'grabbing' : 'grab',
-                touchAction: 'none'
-              }}>
-              <button onClick={() => setZoomLevel(Math.round(stageScale * 100) - 10)}
-                style={{ width: '28px', height: '28px', border: 'none', background: '#f3f4f6', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>−</button>
+          {renderLayersPanel()}
 
+          {zoomPopupPos.y !== null && (
+            <div onMouseDown={handleZoomPopupDragStart} onTouchStart={handleZoomPopupDragStart}
+              style={{ position: 'absolute', left: zoomPopupPos.x, top: zoomPopupPos.y, background: 'white', padding: '6px 8px', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', gap: '4px', alignItems: 'center', zIndex: 20, userSelect: 'none', cursor: isDraggingZoom ? 'grabbing' : 'grab', touchAction: 'none' }}>
+              <button onClick={() => setZoomLevel(Math.round(stageScale * 100) - 10)} style={{ width: '28px', height: '28px', border: 'none', background: '#f3f4f6', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>−</button>
               {isEditingZoom ? (
-                <input
-                  autoFocus type="number"
-                  value={zoomInputValue}
-                  onChange={(e) => setZoomInputValue(e.target.value)}
-                  onBlur={commitZoom}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') commitZoom();
-                    if (e.key === 'Escape') { setIsEditingZoom(false); }
-                  }}
-                  style={{ width: '58px', padding: '4px 2px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', border: '2px solid #3b82f6', borderRadius: '6px', outline: 'none' }}
-                />
+                <input autoFocus type="number" value={zoomInputValue} onChange={(e) => setZoomInputValue(e.target.value)} onBlur={commitZoom}
+                  onKeyDown={(e) => { if (e.key === 'Enter') commitZoom(); if (e.key === 'Escape') setIsEditingZoom(false); }}
+                  style={{ width: '58px', padding: '4px 2px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', border: '2px solid #3b82f6', borderRadius: '6px', outline: 'none' }} />
               ) : (
-                <div
-                  onClick={() => { setZoomInputValue(Math.round(stageScale * 100).toString()); setIsEditingZoom(true); }}
-                  title="Click để nhập %"
+                <div onClick={() => { setZoomInputValue(Math.round(stageScale * 100).toString()); setIsEditingZoom(true); }} title="Click để nhập %"
                   style={{ minWidth: '48px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold', color: '#1f2937', padding: '4px 6px', borderRadius: '6px', cursor: 'text', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
                   {Math.round(stageScale * 100)}%
                 </div>
               )}
-
-              <button onClick={() => setZoomLevel(Math.round(stageScale * 100) + 10)}
-                style={{ width: '28px', height: '28px', border: 'none', background: '#f3f4f6', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>+</button>
-
-              <button onClick={() => {
-                setStageScale(1);
-                userHasMovedCanvas.current = false;
-                setStagePos({ x: mainAreaSize.width / 2 - canvasSize.width / 2, y: mainAreaSize.height / 2 - canvasSize.height / 2 });
-              }} title="Reset về 100% & căn giữa"
+              <button onClick={() => setZoomLevel(Math.round(stageScale * 100) + 10)} style={{ width: '28px', height: '28px', border: 'none', background: '#f3f4f6', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>+</button>
+              <button onClick={() => { setStageScale(1); userHasMovedCanvas.current = false; setStagePos({ x: mainAreaSize.width / 2 - canvasSize.width / 2, y: mainAreaSize.height / 2 - canvasSize.height / 2 }); }} title="Reset 100%"
                 style={{ marginLeft: '2px', width: '28px', height: '28px', border: 'none', background: '#e5e7eb', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>⤾</button>
             </div>
           )}
         </div>
 
-        {selectedId && selectedEl && currentTool === 'select' && !isRulerMode && !bendMode && (
+        {selectedIds.length > 0 && currentTool === 'select' && !isRulerMode && !bendMode && (
           <button onClick={() => setIsRightOpen(!isRightOpen)} style={{ position: 'absolute', right: isMobile ? '20px' : (isRightOpen ? '300px' : '0px'), bottom: isMobile ? (isRightOpen ? 'calc(40vh + 20px)' : '20px') : 'auto', top: isMobile ? 'auto' : '50%', transform: isMobile ? 'none' : 'translateY(-50%)', zIndex: 101, background: '#fff', border: '1px solid #ccc', borderRadius: isMobile ? '50%' : '5px 0 0 5px', borderRight: isMobile ? '1px solid #ccc' : 'none', width: isMobile ? '50px' : 'auto', height: isMobile ? '50px' : 'auto', padding: isMobile ? '0' : '10px 5px', cursor: 'pointer', transition: 'all 0.3s', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? '24px' : '20px' }}>
             {isRightOpen ? (isMobile ? '✕' : '▶') : '⚙️'}
           </button>
         )}
 
-        <div style={{ position: isMobile ? 'fixed' : 'absolute', bottom: 0, right: 0, width: isMobile ? '100%' : (isRightOpen && selectedId ? '300px' : '0px'), height: isMobile ? '40vh' : '100%', backgroundColor: '#f8fafc', zIndex: 9999, transform: (isRightOpen && selectedId) ? 'translateY(0)' : (isMobile ? 'translateY(100%)' : 'translateX(100%)'), transition: 'transform 0.3s ease-in-out', borderTopLeftRadius: isMobile ? '15px' : '0', borderTopRightRadius: isMobile ? '15px' : '0', borderLeft: (!isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none', borderTop: (isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none', boxShadow: (isRightOpen && selectedId) ? (isMobile ? '0 -5px 15px rgba(0,0,0,0.1)' : '-5px 0 15px rgba(0,0,0,0.1)') : 'none', display: 'flex', flexDirection: 'column', onMouseDown: (e) => e.stopPropagation(), onTouchStart: (e) => e.stopPropagation(), onClick: (e) => e.stopPropagation() }}>
+        <div style={{ position: isMobile ? 'fixed' : 'absolute', bottom: 0, right: 0, width: isMobile ? '100%' : (isRightOpen && selectedIds.length > 0 ? '300px' : '0px'), height: isMobile ? '40vh' : '100%', backgroundColor: '#f8fafc', zIndex: 9999, transform: (isRightOpen && selectedIds.length > 0) ? 'translateY(0)' : (isMobile ? 'translateY(100%)' : 'translateX(100%)'), transition: 'transform 0.3s ease-in-out', borderTopLeftRadius: isMobile ? '15px' : '0', borderTopRightRadius: isMobile ? '15px' : '0', borderLeft: (!isMobile && isRightOpen && selectedIds.length > 0) ? '1px solid #ddd' : 'none', borderTop: (isMobile && isRightOpen && selectedIds.length > 0) ? '1px solid #ddd' : 'none', boxShadow: (isRightOpen && selectedIds.length > 0) ? (isMobile ? '0 -5px 15px rgba(0,0,0,0.1)' : '-5px 0 15px rgba(0,0,0,0.1)') : 'none', display: 'flex', flexDirection: 'column', onMouseDown: (e) => e.stopPropagation(), onTouchStart: (e) => e.stopPropagation(), onClick: (e) => e.stopPropagation() }}>
           {isMobile && (<div style={{ width: '100%', height: '25px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><div style={{ width: '40px', height: '5px', background: '#cbd5e1', borderRadius: '5px' }} /></div>)}
           {renderProperties()}
         </div>
       </div>
 
-      {/* Modal Prompt */}
       {promptState && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
           <div style={{ background: 'white', borderRadius: '10px', padding: '20px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
             <h3 style={{ margin: '0 0 15px', fontSize: '16px', color: '#1f2937' }}>{promptState.title}</h3>
-            <input autoFocus type="text" value={promptState.value}
-              onChange={(e) => setPromptState({ ...promptState, value: e.target.value })}
+            <input autoFocus type="text" value={promptState.value} onChange={(e) => setPromptState({ ...promptState, value: e.target.value })}
               onKeyDown={(e) => { if (e.key === 'Enter') handlePromptConfirm(); if (e.key === 'Escape') handlePromptCancel(); }}
               style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', boxSizing: 'border-box', outline: 'none' }} />
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
@@ -2040,7 +2002,6 @@ function App() {
         </div>
       )}
 
-      {/* Modal Confirm */}
       {confirmState && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
           <div style={{ background: 'white', borderRadius: '10px', padding: '20px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
