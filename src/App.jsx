@@ -136,7 +136,6 @@ const buildBentPath = (el) => {
   return 'M 0 0 Z';
 };
 
-// ✅ URLImage với filters
 const URLImage = ({ src, brightness, contrast, blurRadius, saturate, ...props }) => {
   const [image] = useImage(src);
   const ref = useRef();
@@ -152,7 +151,6 @@ const URLImage = ({ src, brightness, contrast, blurRadius, saturate, ...props })
   return <KonvaImage ref={ref} image={image} filters={[Konva.Filters.Brighten, Konva.Filters.Contrast, Konva.Filters.Blur, Konva.Filters.HSL]} brightness={brightness ?? 0} contrast={contrast ?? 0} blurRadius={blurRadius ?? 0} saturation={saturate ?? 1} {...props} />;
 };
 
-// ✅ Canvas background (color + image)
 const CanvasBg = ({ bgImage, bgColor, canvasSize }) => {
   const [img] = useImage(bgImage || '');
   return (
@@ -173,7 +171,6 @@ const CanvasBg = ({ bgImage, bgColor, canvasSize }) => {
   );
 };
 
-// ✅ ArcText FIXED - không nhảy vị trí
 const ArcText = ({ text, fontSize, fontFamily, fontStyle, fill, stroke, strokeWidth, bendAmount, textDecoration, align, width, ...rest }) => {
   const baseOffsetX = (width || 200) / 2;
   const baseOffsetY = (fontSize || 40) / 2;
@@ -244,7 +241,6 @@ function App() {
   const [canvasSize, setCanvasSize] = useState(() => { const s = localStorage.getItem('canvas_size'); return s ? JSON.parse(s) : { width: 800, height: 600 }; });
   const [bgColor, setBgColor] = useState(() => localStorage.getItem('design_bg') || '#ffffff');
   const [bgImage, setBgImage] = useState(null);
-  const bgImageInputRef = useRef(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingText, setProcessingText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -611,11 +607,18 @@ function App() {
     } catch (error) { alert("Lỗi: " + error.message); setIsProcessing(false); }
   };
 
+  // ✅ FIX #2: getCenterPosition — clamp nếu tâm viewport ngoài canvas
   const getCenterPosition = () => {
     if (!stageRef.current) return { x: canvasSize.width / 2, y: canvasSize.height / 2 };
     let vw = mainAreaSize.width, vh = mainAreaSize.height;
     if (isMobile && isRightOpen) vh = vh * 0.6;
-    return { x: (vw / 2 - stagePos.x) / stageScale, y: (vh / 2 - stagePos.y) / stageScale };
+    const cx = (vw / 2 - stagePos.x) / stageScale;
+    const cy = (vh / 2 - stagePos.y) / stageScale;
+    const PADDING = 30;
+    if (cx < PADDING || cx > canvasSize.width - PADDING || cy < PADDING || cy > canvasSize.height - PADDING) {
+      return { x: canvasSize.width / 2, y: canvasSize.height / 2 };
+    }
+    return { x: cx, y: cy };
   };
 
   const centerSelected = () => {
@@ -656,7 +659,6 @@ function App() {
     }));
   };
 
-  // ✅ FIXED addBasicShape với center offset
   const addBasicShape = (type) => {
     setCurrentTool('select'); setIsRulerMode(false);
     const c = getCenterPosition();
@@ -674,7 +676,6 @@ function App() {
     }
   };
 
-  // ✅ FIXED addLucideIcon với offsetX/Y
   const addLucideIcon = (iconName) => {
     setCurrentTool('select'); setIsRulerMode(false);
     const paths = getIconPaths(LucideIcons[iconName]);
@@ -696,10 +697,19 @@ function App() {
   const deleteCustomShape = async (e, id) => { e.stopPropagation(); const ok = await showConfirm("Xoá hình này khỏi thư viện?"); if (!ok) return; setCustomShapes(customShapes.filter(s => s.id !== id)); };
   const deleteAllCustomShapes = async () => { const ok = await showConfirm("XOÁ TẤT CẢ hình tự do?"); if (!ok) return; setCustomShapes([]); };
 
+  // ✅ FIX #1: addPathShape — offsetX/Y để centered
   const addPathShape = (pathData) => {
     setCurrentTool('select'); setIsRulerMode(false);
     const c = getCenterPosition();
-    const ne = { id: uuidv4(), type: 'path', x: c.x, y: c.y, rotation: 0, data: [pathData], stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent', scaleX: 2.5, scaleY: 2.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000', blendMode: 'source-over' };
+    const ne = {
+      id: uuidv4(), type: 'path',
+      x: c.x, y: c.y,
+      offsetX: 12, offsetY: 12,
+      rotation: 0, data: [pathData],
+      stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent',
+      scaleX: 2.5, scaleY: 2.5,
+      opacity: 1, shadowEnabled: false, shadowColor: '#000000', blendMode: 'source-over'
+    };
     saveToHistory([...elements, ne]); setSelectedIds([ne.id]);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
@@ -719,14 +729,30 @@ function App() {
     saveToHistory(ne);
   };
 
+  // ✅ FIX #3: handleTransformEnd — bent text dùng Group (không có fontSize) + brush scale
   const handleTransformEnd = (e, el) => {
-    const node = e.target; const sx = node.scaleX(), sy = node.scaleY();
+    const node = e.target;
+    const sx = node.scaleX(), sy = node.scaleY();
     let np = { x: node.x(), y: node.y(), rotation: node.rotation() };
-    if (['image', 'rect', 'path', 'icon', 'bentShape'].includes(el.type)) np = { ...np, scaleX: sx, scaleY: sy };
-    else if (el.type === 'text') { node.scaleX(1); node.scaleY(1); np = { ...np, width: Math.max(20, node.width() * sx), fontSize: Math.max(10, node.fontSize() * sy) }; }
-    else if (['circle', 'polygon'].includes(el.type)) { node.scaleX(1); node.scaleY(1); np = { ...np, radius: Math.max(10, node.radius() * sx) }; }
-    else if (el.type === 'star') { node.scaleX(1); node.scaleY(1); np = { ...np, innerRadius: Math.max(10, node.innerRadius() * sx), outerRadius: Math.max(10, node.outerRadius() * sx) }; }
-    else if (el.type === 'arrow') { node.scaleX(1); node.scaleY(1); np = { ...np, points: node.points().map(p => p * sx), strokeWidth: Math.max(1, node.strokeWidth() * sx) }; }
+
+    if (el.type === 'text' && el.bendAmount && el.bendAmount !== 0) {
+      // Bent text render bằng Group → không có width/fontSize → chỉ lưu scale
+      np = { ...np, scaleX: sx, scaleY: sy };
+    } else if (['image', 'rect', 'path', 'icon', 'bentShape', 'brush'].includes(el.type)) {
+      np = { ...np, scaleX: sx, scaleY: sy };
+    } else if (el.type === 'text') {
+      node.scaleX(1); node.scaleY(1);
+      np = { ...np, width: Math.max(20, node.width() * sx), fontSize: Math.max(10, node.fontSize() * sy) };
+    } else if (['circle', 'polygon'].includes(el.type)) {
+      node.scaleX(1); node.scaleY(1);
+      np = { ...np, radius: Math.max(10, node.radius() * sx) };
+    } else if (el.type === 'star') {
+      node.scaleX(1); node.scaleY(1);
+      np = { ...np, innerRadius: Math.max(10, node.innerRadius() * sx), outerRadius: Math.max(10, node.outerRadius() * sx) };
+    } else if (el.type === 'arrow') {
+      node.scaleX(1); node.scaleY(1);
+      np = { ...np, points: node.points().map(p => p * sx), strokeWidth: Math.max(1, node.strokeWidth() * sx) };
+    }
     saveToHistory(elements.map(i => i.id === el.id ? { ...i, ...np } : i));
   };
 
@@ -766,7 +792,6 @@ function App() {
   const selectedEl = elements.find(el => el.id === selectedId);
   const multiSelect = selectedIds.length > 1;
 
-  // Gradient helpers
   const getGradientProps = (el) => {
     if (el.fillType !== 'gradient') return {};
     const angle = (el.gradientAngle || 0) * Math.PI / 180;
@@ -843,8 +868,20 @@ function App() {
       ...(el.type === 'star' && { innerRadius: el.innerRadius, outerRadius: el.outerRadius, numPoints: el.numPoints }),
       ...(el.type === 'arrow' && { points: el.points, pointerLength: el.pointerLength, pointerWidth: el.pointerWidth }),
       ...(el.type === 'image' && { src: el.src, width: el.width, height: el.height, scaleX: el.scaleX || 1, scaleY: el.scaleY || 1, brightness: el.brightness, contrast: el.contrast, blurRadius: el.blurRadius, saturate: el.saturate }),
-      ...(el.type === 'path' && { data: el.data[0], scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
-      ...(el.type === 'brush' && { points: el.points, tension: el.tension, lineCap: 'round', lineJoin: 'round' }),
+      // ✅ FIX #4: Path có offsetX/Y + hitStrokeWidth
+      ...(el.type === 'path' && {
+        data: el.data[0],
+        scaleX: el.scaleX || 1, scaleY: el.scaleY || 1,
+        offsetX: el.offsetX ?? 0, offsetY: el.offsetY ?? 0,
+        hitStrokeWidth: Math.max(20, (el.strokeWidth || 3) * 3)
+      }),
+      // ✅ FIX #4: Brush có scale + hitStrokeWidth
+      ...(el.type === 'brush' && {
+        points: el.points, tension: el.tension,
+        scaleX: el.scaleX || 1, scaleY: el.scaleY || 1,
+        hitStrokeWidth: Math.max(20, (el.strokeWidth || 5) * 2),
+        lineCap: 'round', lineJoin: 'round'
+      }),
     };
     if (el.type === 'image') return <URLImage key={el.id} {...finalProps} />;
     if (el.type === 'rect') return <Rect key={el.id} {...finalProps} />;
@@ -1096,7 +1133,6 @@ function App() {
                 <input type="range" min="0" max="1" step="0.05" value={selectedEl.opacity ?? 1} onChange={(e) => updateElement(selectedId, { opacity: parseFloat(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
               </div>
 
-              {/* Blend mode */}
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Blend mode:</label>
                 <select value={selectedEl.blendMode || 'source-over'} onChange={(e) => updateElement(selectedId, { blendMode: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', marginTop: '4px' }}>
@@ -1115,7 +1151,6 @@ function App() {
                 </select>
               </div>
 
-              {/* Image filters */}
               {selectedEl.type === 'image' && (
                 <div style={{ background: '#dcfce7', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
                   <h4 style={{ fontWeight: 'bold', color: '#14532d', marginBottom: '10px', fontSize: '14px' }}>🎨 Bộ lọc ảnh</h4>
@@ -1123,9 +1158,9 @@ function App() {
                   <input type="range" min="-1" max="1" step="0.05" value={selectedEl.brightness ?? 0} onChange={(e) => updateElement(selectedId, { brightness: parseFloat(e.target.value) })} style={{ width: '100%', marginBottom: '6px' }} />
                   <label style={{ fontSize: '12px' }}>Tương phản: {selectedEl.contrast ?? 0}</label>
                   <input type="range" min="-100" max="100" step="1" value={selectedEl.contrast ?? 0} onChange={(e) => updateElement(selectedId, { contrast: parseFloat(e.target.value) })} style={{ width: '100%', marginBottom: '6px' }} />
-                  <label style={{ fontSize: '12px' }}>Độ mờ (blur): {selectedEl.blurRadius ?? 0}px</label>
+                  <label style={{ fontSize: '12px' }}>Blur: {selectedEl.blurRadius ?? 0}px</label>
                   <input type="range" min="0" max="30" step="1" value={selectedEl.blurRadius ?? 0} onChange={(e) => updateElement(selectedId, { blurRadius: parseFloat(e.target.value) })} style={{ width: '100%', marginBottom: '6px' }} />
-                  <label style={{ fontSize: '12px' }}>Bão hòa màu: {selectedEl.saturate ?? 1}</label>
+                  <label style={{ fontSize: '12px' }}>Bão hòa: {selectedEl.saturate ?? 1}</label>
                   <input type="range" min="0" max="3" step="0.1" value={selectedEl.saturate ?? 1} onChange={(e) => updateElement(selectedId, { saturate: parseFloat(e.target.value) })} style={{ width: '100%' }} />
                   <button className="btn" style={{ width: '100%', background: '#e5e7eb', fontSize: '12px', padding: '6px', marginTop: '8px' }} onClick={() => updateElement(selectedId, { brightness: 0, contrast: 0, blurRadius: 0, saturate: 1 })}>⟲ Reset bộ lọc</button>
                 </div>
@@ -1159,7 +1194,6 @@ function App() {
                   <label style={{ fontSize: '13px' }}>{selectedEl.type === 'text' ? 'Màu chữ' : 'Màu nền'}:</label>
                   <input type="color" value={selectedEl.fill === 'transparent' ? '#ffffff' : (selectedEl.fill || '#3b82f6')} onChange={(e) => updateElement(selectedId, { fill: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
 
-                  {/* Gradient - chỉ cho shape có fill */}
                   {isShapeWithFill && (
                     <div style={{ background: '#f3e8ff', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
                       <div style={{ display: 'flex', gap: '5px', marginBottom: '8px' }}>
@@ -1237,7 +1271,7 @@ function App() {
               <h3 style={{ margin: '0 0 15px', fontSize: '15px', lineHeight: 1.5 }}>{confirmState.title}</h3>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button onClick={handleConfirmNo} style={{ padding: '8px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Hủy</button>
-                <button onClick={handleConfirmYes} style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Xác nhận</button>
+                <button onClick={handleConfirmYes} style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>OK</button>
               </div>
             </div>
           </div>
@@ -1251,7 +1285,6 @@ function App() {
       {isDragging && <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(59, 130, 246, 0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', border: '10px dashed white', boxSizing: 'border-box' }}><h2 style={{ color: 'white', fontSize: '32px' }}>Thả file Ảnh hoặc .json!</h2></div>}
       {isProcessing && <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white' }}><div style={{ border: '5px solid #f3f3f3', borderTop: '5px solid #8b5cf6', borderRadius: '50%', width: '60px', height: '60px', animation: 'spin 1s linear infinite' }}></div><h3 style={{ marginTop: '20px', fontSize: '22px' }}>{processingText}</h3></div>}
 
-      {/* TASKBAR */}
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', background: '#d1d5db', padding: '6px 10px 0', overflowX: 'auto', flexShrink: 0, borderBottom: '1px solid #9ca3af', minHeight: '36px', WebkitOverflowScrolling: 'touch' }}>
         {openProjectIds.map(id => {
           const proj = projects.find(p => p.id === id); if (!proj) return null;
@@ -1288,14 +1321,13 @@ function App() {
         </div>
       </>)}
 
-      {/* TOOLBAR */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'space-between', background: '#e5e7eb', padding: isMobile ? '8px 10px' : '10px 15px', borderBottom: '1px solid #d1d5db', gap: '10px', flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
         <div style={{ display: 'flex', gap: isMobile ? '8px' : '10px', alignItems: 'center', flexWrap: isMobile ? 'nowrap' : 'wrap', flexShrink: 0 }}>
           <button ref={projectBtnRef} onClick={openProjectMenu} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: showProjectMenu ? '#3b82f6' : '#fff', color: showProjectMenu ? '#fff' : '#333', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>📁 Project</button>
           <button onClick={() => setShowLayers(!showLayers)} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: showLayers ? '#3b82f6' : '#fff', color: showLayers ? '#fff' : '#333', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>☰ Layers</button>
           <h2 style={{ fontSize: '18px', color: '#1f2937', margin: 0, fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0 }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
           <select value={`${canvasSize.width}x${canvasSize.height}`} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); setCanvasSize({ width: w, height: h }); }} style={{ padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}>
-            <option value="800x600">800x600</option><option value="1080x1080">1080x1080</option><option value="1080x1920">1080x1920 (Story)</option><option value="1920x1080">1920x1080 (YT)</option><option value="1200x630">1200x630 (FB)</option>
+            <option value="800x600">800x600</option><option value="1080x1080">1080x1080</option><option value="1080x1920">1080x1920</option><option value="1920x1080">1920x1080</option><option value="1200x630">1200x630</option>
           </select>
           <div style={{ display: 'flex', gap: '5px', borderLeft: '1px solid #ccc', paddingLeft: '10px', flexShrink: 0 }}>
             <button style={{ border: '1px solid #ccc', background: currentTool === 'brush' ? '#3b82f6' : '#fff', color: currentTool === 'brush' ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => { setCurrentTool('brush'); setIsRulerMode(false); }}>🖌️ Bút</button>
@@ -1322,7 +1354,6 @@ function App() {
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative', minHeight: 0 }}>
-        {/* LEFT PANEL */}
         <div style={{ width: isLeftOpen ? (isMobile ? '100%' : '250px') : '0px', overflow: 'hidden', transition: 'width 0.3s', background: 'white', position: 'absolute', left: 0, zIndex: 100, height: '100%', borderRight: isLeftOpen ? '1px solid #ddd' : 'none' }}>
           <div style={{ padding: '15px', overflowY: 'auto', height: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
