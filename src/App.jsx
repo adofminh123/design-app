@@ -36,7 +36,7 @@ const getIconPaths = (IconComponent) => {
     tempDiv.innerHTML = svgString;
     const svg = tempDiv.querySelector('svg');
     if (!svg) return [];
-    
+
     let paths = [];
     svg.querySelectorAll('path, circle, line, rect, polygon, polyline, ellipse').forEach(node => {
       if (node.tagName === 'path') {
@@ -92,10 +92,54 @@ const toggleFontStyle = (el, style) => {
   return styles.length === 0 ? 'normal' : styles.join(' ');
 };
 
+// ✅ Project helpers
+const getProjectsList = () => {
+  try { return JSON.parse(localStorage.getItem('projects')) || []; }
+  catch { return []; }
+};
+
+const initLegacyProject = () => {
+  const existing = localStorage.getItem('projects');
+  if (existing) {
+    try { return JSON.parse(existing); } catch { return []; }
+  }
+  const oldElements = localStorage.getItem('design_elements');
+  if (oldElements && oldElements !== '[]') {
+    try {
+      const id = uuidv4();
+      const now = Date.now();
+      const project = {
+        id, name: 'Dự án cũ',
+        elements: JSON.parse(oldElements) || [],
+        bgColor: localStorage.getItem('design_bg') || '#ffffff',
+        canvasSize: JSON.parse(localStorage.getItem('canvas_size') || '{"width":800,"height":600}'),
+        createdAt: now, updatedAt: now
+      };
+      localStorage.setItem(`project_${id}`, JSON.stringify(project));
+      const list = [{ id, name: project.name, createdAt: now, updatedAt: now }];
+      localStorage.setItem('projects', JSON.stringify(list));
+      return list;
+    } catch { return []; }
+  }
+  return [];
+};
+
+const PROJECT_MENU_ITEM_STYLE = {
+  display: 'block', width: '100%', padding: '10px 14px',
+  background: 'none', border: 'none', textAlign: 'left',
+  cursor: 'pointer', fontSize: '13px', color: '#1f2937'
+};
+
 function App() {
+  // ✅ Project management state
+  const [view, setView] = useState('lobby');
+  const [projects, setProjects] = useState(initLegacyProject);
+  const [currentProjectId, setCurrentProjectId] = useState(null);
+  const [showProjectMenu, setShowProjectMenu] = useState(false);
+
   const [elements, setElements] = useState(getInitialElements);
   const [customShapes, setCustomShapes] = useState(getInitialCustomShapes);
-  
+
   const [canvasSize, setCanvasSize] = useState(() => {
     const saved = localStorage.getItem('canvas_size');
     return saved ? JSON.parse(saved) : { width: 800, height: 600 };
@@ -105,15 +149,45 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingText, setProcessingText] = useState('');
-  
+
   const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
-  const [activeTab, setActiveTab] = useState('basic'); 
+  const [activeTab, setActiveTab] = useState('basic');
 
   const [mainAreaSize, setMainAreaSize] = useState({ width: 800, height: 600 });
   const mainAreaRef = useRef(null);
-  
+
   const isCanvasDragging = useRef(false);
+
+  // ✅ FIX #1: Inject Google Fonts với italic variants
+  useEffect(() => {
+    if (document.getElementById('pixelcraft-fonts')) return;
+    const link = document.createElement('link');
+    link.id = 'pixelcraft-fonts';
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Roboto:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&family=Anton&family=Bebas+Neue&family=Dancing+Script:ital,wght@0,400;0,700;1,400;1,700&display=swap';
+    document.head.appendChild(link);
+  }, []);
+
+  // ✅ Load project từ URL (New tab)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get('project');
+    if (!projectId) return;
+    try {
+      const data = localStorage.getItem(`project_${projectId}`);
+      if (!data) { alert('Project không tồn tại'); return; }
+      const project = JSON.parse(data);
+      setElements(project.elements || []);
+      setBgColor(project.bgColor || '#ffffff');
+      setCanvasSize(project.canvasSize || { width: 800, height: 600 });
+      setHistory([project.elements || []]);
+      setHistoryStep(0);
+      setCurrentProjectId(projectId);
+      setView('editor');
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch { alert('Lỗi mở project'); }
+  }, []);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 1024);
@@ -136,7 +210,7 @@ function App() {
   }, []);
 
   const [isLeftOpen, setIsLeftOpen] = useState(!isMobile);
-  const [isRightOpen, setIsRightOpen] = useState(true); 
+  const [isRightOpen, setIsRightOpen] = useState(true);
   const [showTooltip, setShowTooltip] = useState(false);
 
   const [currentTool, setCurrentTool] = useState('select');
@@ -151,7 +225,7 @@ function App() {
 
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [draftShape, setDraftShape] = useState({
-    type: 'rect', width: 200, height: 150, cornerRadius: 0, 
+    type: 'rect', width: 200, height: 150, cornerRadius: 0,
     radius: 80, sides: 5, innerRadius: 40, outerRadius: 80, numPoints: 5,
     fill: '#3b82f6', stroke: '#000000', strokeWidth: 0
   });
@@ -165,14 +239,31 @@ function App() {
   const stageRef = useRef(null);
   const trRef = useRef(null);
   const layerRef = useRef(null);
-  const fileInputRef = useRef(null); 
+  const fileInputRef = useRef(null);
 
+  // ✅ Lưu custom shapes (global)
   useEffect(() => {
-    localStorage.setItem('design_elements', JSON.stringify(elements));
-    localStorage.setItem('design_bg', bgColor);
     localStorage.setItem('custom_shapes', JSON.stringify(customShapes));
-    localStorage.setItem('canvas_size', JSON.stringify(canvasSize));
-  }, [elements, bgColor, customShapes, canvasSize]);
+  }, [customShapes]);
+
+  // ✅ Lưu vào project hiện tại
+  useEffect(() => {
+    if (!currentProjectId) return;
+    const name = projects.find(p => p.id === currentProjectId)?.name || 'Untitled';
+    const projectData = {
+      id: currentProjectId, name,
+      elements, bgColor, canvasSize,
+      updatedAt: Date.now()
+    };
+    localStorage.setItem(`project_${currentProjectId}`, JSON.stringify(projectData));
+    setProjects(prev => {
+      const exists = prev.find(p => p.id === currentProjectId);
+      if (!exists) return prev;
+      return prev.map(p =>
+        p.id === currentProjectId ? { ...p, updatedAt: projectData.updatedAt } : p
+      );
+    });
+  }, [elements, bgColor, canvasSize, currentProjectId]);
 
   useEffect(() => {
     if (mainAreaSize.width > 0 && mainAreaSize.height > 0) {
@@ -205,12 +296,11 @@ function App() {
       } else if (e.key === 'Escape' || e.key === 'Backspace') {
         if (!selectedId) return;
         e.preventDefault();
-        // ✅ FIX #5: chỉ xoá text khi có nội dung, nếu rỗng thì xoá element
         if (e.key === 'Backspace') {
           const el = elements.find(item => item.id === selectedId);
-          if (el && el.type === 'text' && el.text && el.text.length > 0) { 
-            updateElement(selectedId, { text: '' }); 
-            return; 
+          if (el && el.type === 'text' && el.text && el.text.length > 0) {
+            updateElement(selectedId, { text: '' });
+            return;
           }
         }
         deleteSelected();
@@ -257,7 +347,7 @@ function App() {
     const stage = e.target.getStage();
     const oldScale = stage.scaleX();
     const pointerPosition = stage.getPointerPosition();
-    
+
     if (!pointerPosition) return;
 
     const mousePointTo = {
@@ -265,7 +355,7 @@ function App() {
       y: (pointerPosition.y - stage.y()) / oldScale,
     };
     const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-    
+
     if (newScale < 0.1 || newScale > 5) return;
 
     setStageScale(newScale);
@@ -285,7 +375,7 @@ function App() {
       if (stageRef.current.isDragging()) {
         stageRef.current.stopDrag();
       }
-      
+
       const p1 = { x: touch1.clientX, y: touch1.clientY };
       const p2 = { x: touch2.clientX, y: touch2.clientY };
       const newDist = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
@@ -299,7 +389,7 @@ function App() {
       const scaleBy = newDist / lastDist.current;
       const oldScale = stageRef.current.scaleX();
       let newScale = oldScale * scaleBy;
-      
+
       if (newScale < 0.1) newScale = 0.1;
       if (newScale > 5) newScale = 5;
 
@@ -342,7 +432,7 @@ function App() {
       saveToHistory([...elements, newLine]);
       setTempLine(null);
     } else if (isDrawing.current) {
-      isDrawing.current = false; 
+      isDrawing.current = false;
       saveToHistory(elements);
     }
   };
@@ -359,9 +449,9 @@ function App() {
       return;
     }
     isDrawing.current = true;
-    
-    const newLine = { 
-      id: uuidv4(), type: 'brush', points: [pos.x, pos.y], stroke: brushColor, strokeWidth: brushSize, tension: 0.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' 
+
+    const newLine = {
+      id: uuidv4(), type: 'brush', points: [pos.x, pos.y], stroke: brushColor, strokeWidth: brushSize, tension: 0.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000'
     };
     setElements([...elements, newLine]);
   };
@@ -375,7 +465,7 @@ function App() {
       return;
     }
     if (!isDrawing.current || currentTool !== 'brush') return;
-    
+
     let lastLine = elements[elements.length - 1];
     if (lastLine && lastLine.type === 'brush') {
       lastLine.points = lastLine.points.concat([pos.x, pos.y]);
@@ -428,7 +518,6 @@ function App() {
       };
       reader.readAsText(file);
     } else if (file.type.startsWith('image/')) {
-      // ✅ FIX #2: giữ tỷ lệ ảnh khi thả
       const reader = new FileReader();
       reader.onload = () => {
         const img = new Image();
@@ -438,11 +527,11 @@ function App() {
           let w = img.width, h = img.height;
           if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } }
           else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } }
-          const newEl = { 
-            id: uuidv4(), type: 'image', 
+          const newEl = {
+            id: uuidv4(), type: 'image',
             x: center.x - w / 2, y: center.y - h / 2,
-            width: w, height: h, 
-            src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' 
+            width: w, height: h,
+            src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000'
           };
           saveToHistory([...elements, newEl]); setCurrentTool('select');
           if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
@@ -455,7 +544,6 @@ function App() {
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0]; if (!file) return;
-    // ✅ FIX #2: giữ tỷ lệ ảnh
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
@@ -465,13 +553,13 @@ function App() {
         let w = img.width, h = img.height;
         if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } }
         else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } }
-        const newEl = { 
-          id: uuidv4(), type: 'image', 
+        const newEl = {
+          id: uuidv4(), type: 'image',
           x: center.x - w / 2, y: center.y - h / 2,
-          width: w, height: h, 
-          src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000' 
+          width: w, height: h,
+          src: reader.result, opacity: 1, shadowEnabled: false, shadowColor: '#000000'
         };
-        saveToHistory([...elements, newEl]); 
+        saveToHistory([...elements, newEl]);
         setCurrentTool('select');
         if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
       };
@@ -491,7 +579,7 @@ function App() {
         else { if (height > maxSize) { width *= maxSize / height; height = maxSize; } }
         canvas.width = width; canvas.height = height;
         canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.9)); 
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
       };
       img.src = dataUrl;
     });
@@ -503,7 +591,7 @@ function App() {
     try {
       const element = elements.find(el => el.id === selectedId);
       if (!element || element.type !== 'image') return;
-      const resizedDataUrl = await resizeImage(element.src, 1600); 
+      const resizedDataUrl = await resizeImage(element.src, 1600);
       const blob = await (await fetch(resizedDataUrl)).blob();
       const formData = new FormData(); formData.append('file', blob, 'image.jpg');
       let successBlob = null;
@@ -527,7 +615,7 @@ function App() {
     let visibleW = mainAreaSize.width;
     let visibleH = mainAreaSize.height;
     if (isMobile && isRightOpen) { visibleH = visibleH * 0.6; }
-    
+
     const centerX = (visibleW / 2 - stagePos.x) / stageScale;
     const centerY = (visibleH / 2 - stagePos.y) / stageScale;
     return { x: centerX, y: centerY };
@@ -539,16 +627,16 @@ function App() {
     const box = node.getClientRect({ relativeTo: layerRef.current });
     const canvasCenterX = canvasSize.width / 2;
     const canvasCenterY = canvasSize.height / 2;
-    
+
     const dx = canvasCenterX - (box.x + box.width / 2);
     const dy = canvasCenterY - (box.y + box.height / 2);
-    
+
     updateElement(selectedId, { x: node.x() + dx, y: node.y() + dy });
   };
 
   const addBasicShape = (type) => {
     setCurrentTool('select');
-    setIsRulerMode(false); // ✅ FIX #3: tự thoát ruler mode
+    setIsRulerMode(false);
     const center = getCenterPosition();
     const base = { id: uuidv4(), x: center.x, y: center.y, rotation: 0, scaleX: 1, scaleY: 1, stroke: '#000000', strokeWidth: 0, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     let newEl = {};
@@ -558,11 +646,11 @@ function App() {
     if (type === 'triangle' || type === 'polygon') newEl = { ...base, type: 'polygon', radius: 80, sides: type === 'triangle' ? 3 : 5, fill: '#eab308' };
     if (type === 'star') newEl = { ...base, type, innerRadius: 40, outerRadius: 80, numPoints: 5, fill: '#8b5cf6' };
     if (type === 'arrow') newEl = { ...base, type, points: [0, 0, 150, 0], stroke: '#000000', strokeWidth: 4, pointerLength: 20, pointerWidth: 20 };
-    
-    if (newEl.type) { 
-      saveToHistory([...elements, newEl]); 
-      setSelectedId(newEl.id); 
-      if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); } 
+
+    if (newEl.type) {
+      saveToHistory([...elements, newEl]);
+      setSelectedId(newEl.id);
+      if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
     }
   };
 
@@ -571,7 +659,7 @@ function App() {
     setIsRulerMode(false);
     const center = getCenterPosition();
     const newEl = { ...shapeTemplate, id: uuidv4(), x: center.x, y: center.y, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
-    saveToHistory([...elements, newEl]); 
+    saveToHistory([...elements, newEl]);
     setSelectedId(newEl.id);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
@@ -595,7 +683,7 @@ function App() {
     setIsRulerMode(false);
     const center = getCenterPosition();
     const newEl = { id: uuidv4(), type: 'path', x: center.x, y: center.y, rotation: 0, data: [pathData], stroke: '#3b82f6', strokeWidth: 3, fill: 'transparent', scaleX: 2.5, scaleY: 2.5, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
-    saveToHistory([...elements, newEl]); 
+    saveToHistory([...elements, newEl]);
     setSelectedId(newEl.id);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
@@ -604,22 +692,22 @@ function App() {
     setCurrentTool('select');
     setIsRulerMode(false);
     const paths = getIconPaths(LucideIcons[iconName]);
-    
+
     if (paths.length === 0) {
       console.warn(`[Lỗi Icon] Không thể lấy SVG path cho icon: ${iconName}.`);
       return;
     }
-    
+
     const center = getCenterPosition();
     const newEl = { id: uuidv4(), type: 'icon', x: center.x, y: center.y, rotation: 0, data: paths, stroke: '#3b82f6', strokeWidth: 1.5, fill: 'transparent', scaleX: 8, scaleY: 8, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
-    saveToHistory([...elements, newEl]); 
+    saveToHistory([...elements, newEl]);
     setSelectedId(newEl.id);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
 
   const updateElement = (id, newAttrs) => { saveToHistory(elements.map(el => el.id === id ? { ...el, ...newAttrs } : el)); };
   const deleteSelected = () => { saveToHistory(elements.filter(el => el.id !== selectedId)); setSelectedId(null); };
-  
+
   const duplicateSelected = () => {
     const el = elements.find(e => e.id === selectedId);
     if (el) {
@@ -651,7 +739,7 @@ function App() {
 
   const exportPng = () => {
     const fileName = prompt("Nhập tên file ảnh (không cần đuôi .png):", "pixelcraft-image");
-    if (!fileName) return; 
+    if (!fileName) return;
 
     if (trRef.current) trRef.current.hide();
     const oldScale = stageRef.current.scaleX();
@@ -660,10 +748,10 @@ function App() {
     stageRef.current.position({ x: 0, y: 0 });
     stageRef.current.batchDraw();
 
-    const uri = stageRef.current.toDataURL({ 
-      x: 0, y: 0, 
-      width: canvasSize.width, height: canvasSize.height, 
-      pixelRatio: 2 
+    const uri = stageRef.current.toDataURL({
+      x: 0, y: 0,
+      width: canvasSize.width, height: canvasSize.height,
+      pixelRatio: 2
     });
 
     stageRef.current.scale({ x: oldScale, y: oldScale });
@@ -672,7 +760,7 @@ function App() {
     if (trRef.current) trRef.current.show();
 
     const link = document.createElement('a');
-    link.download = `${fileName}.png`; 
+    link.download = `${fileName}.png`;
     link.href = uri;
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
@@ -722,26 +810,26 @@ function App() {
       shadowForStrokeEnabled: true,
     } : {};
 
-    const commonProps = { 
-      id: el.id, x: el.x || 0, y: el.y || 0, rotation: el.rotation || 0, 
-      draggable: currentTool === 'select' && !isRulerMode && (selectedId === el.id), 
+    const commonProps = {
+      id: el.id, x: el.x || 0, y: el.y || 0, rotation: el.rotation || 0,
+      draggable: currentTool === 'select' && !isRulerMode && (selectedId === el.id),
       opacity: el.opacity ?? 1,
       ...shadowProps,
-      onMouseDown: (e) => { 
-        e.cancelBubble = true; 
-        if(currentTool === 'select' && !isRulerMode) {
-          setSelectedId(el.id);
-          if (isMobile) setIsRightOpen(true); 
-        }
-      }, 
-      onTap: (e) => { 
-        e.cancelBubble = true; 
+      onMouseDown: (e) => {
+        e.cancelBubble = true;
         if(currentTool === 'select' && !isRulerMode) {
           setSelectedId(el.id);
           if (isMobile) setIsRightOpen(true);
         }
       },
-      onDragEnd: (e) => saveToHistory(elements.map(item => item.id === el.id ? { ...item, x: e.target.x(), y: e.target.y() } : item)), 
+      onTap: (e) => {
+        e.cancelBubble = true;
+        if(currentTool === 'select' && !isRulerMode) {
+          setSelectedId(el.id);
+          if (isMobile) setIsRightOpen(true);
+        }
+      },
+      onDragEnd: (e) => saveToHistory(elements.map(item => item.id === el.id ? { ...item, x: e.target.x(), y: e.target.y() } : item)),
       onTransformEnd: (e) => handleTransformEnd(e, el),
     };
 
@@ -796,9 +884,99 @@ function App() {
     return null;
   };
 
+  // ✅ Project handlers
+  const openProject = (id) => {
+    try {
+      const data = localStorage.getItem(`project_${id}`);
+      if (!data) return alert('Project không tồn tại');
+      const project = JSON.parse(data);
+      setElements(project.elements || []);
+      setBgColor(project.bgColor || '#ffffff');
+      setCanvasSize(project.canvasSize || { width: 800, height: 600 });
+      setHistory([project.elements || []]);
+      setHistoryStep(0);
+      setSelectedId(null);
+      setCurrentProjectId(id);
+      setView('editor');
+    } catch { alert('Lỗi mở project'); }
+  };
+
+  const handleCreateProject = () => {
+    const name = prompt('Tên project mới:', `Dự án ${projects.length + 1}`);
+    if (!name) return;
+    const id = uuidv4();
+    const now = Date.now();
+    const project = {
+      id, name, elements: [], bgColor: '#ffffff',
+      canvasSize: { width: 800, height: 600 },
+      createdAt: now, updatedAt: now
+    };
+    localStorage.setItem(`project_${id}`, JSON.stringify(project));
+    const newList = [...projects, { id, name, createdAt: now, updatedAt: now }];
+    localStorage.setItem('projects', JSON.stringify(newList));
+    setProjects(newList);
+    openProject(id);
+  };
+
+  const handleExitProject = () => {
+    setView('lobby');
+    setCurrentProjectId(null);
+    setSelectedId(null);
+    setShowProjectMenu(false);
+  };
+
+  const handleNewProject = () => {
+    setShowProjectMenu(false);
+    handleCreateProject();
+  };
+
+  const handleNewTabProject = () => {
+    const name = prompt('Tên project mới (tab mới):', `Dự án ${projects.length + 1}`);
+    if (!name) return;
+    const id = uuidv4();
+    const now = Date.now();
+    const project = {
+      id, name, elements: [], bgColor: '#ffffff',
+      canvasSize: { width: 800, height: 600 },
+      createdAt: now, updatedAt: now
+    };
+    localStorage.setItem(`project_${id}`, JSON.stringify(project));
+    const newList = [...projects, { id, name, createdAt: now, updatedAt: now }];
+    localStorage.setItem('projects', JSON.stringify(newList));
+    setProjects(newList);
+    setShowProjectMenu(false);
+    window.open(`${window.location.pathname}?project=${id}`, '_blank');
+  };
+
+  const deleteProject = (id) => {
+    if (!window.confirm('Xoá project này? Không thể hoàn tác.')) return;
+    localStorage.removeItem(`project_${id}`);
+    const newList = projects.filter(p => p.id !== id);
+    localStorage.setItem('projects', JSON.stringify(newList));
+    setProjects(newList);
+  };
+
+  const renameProject = (id) => {
+    const project = projects.find(p => p.id === id);
+    if (!project) return;
+    const newName = prompt('Tên mới:', project.name);
+    if (!newName || newName === project.name) return;
+    const newList = projects.map(p => p.id === id ? { ...p, name: newName } : p);
+    localStorage.setItem('projects', JSON.stringify(newList));
+    setProjects(newList);
+    const data = localStorage.getItem(`project_${id}`);
+    if (data) {
+      try {
+        const proj = JSON.parse(data);
+        proj.name = newName;
+        localStorage.setItem(`project_${id}`, JSON.stringify(proj));
+      } catch {}
+    }
+  };
+
   const renderProperties = () => {
     if (!selectedId || !selectedEl || currentTool !== 'select' || isRulerMode) return null;
-    
+
     return (
       <div style={{ padding: '15px', height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -808,10 +986,10 @@ function App() {
 
         <div style={{ display: 'flex', borderBottom: '1px solid #ddd', marginBottom: '15px' }}>
           {['basic', 'effects', 'colors'].map(tab => (
-            <button 
+            <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              style={{ 
+              style={{
                 flex: 1, padding: '8px', background: 'none', border: 'none', cursor: 'pointer',
                 borderBottom: activeTab === tab ? '2px solid #3b82f6' : 'none',
                 color: activeTab === tab ? '#3b82f6' : '#6b7280', fontWeight: 'bold'
@@ -836,16 +1014,15 @@ function App() {
                 <div style={{ marginBottom: '15px' }}>
                   <div className="input-group" style={{ marginBottom: '10px' }}>
                     <label style={{ fontSize: '13px' }}>Nội dung chữ:</label>
-                    {/* ✅ FIX #7: cập nhật realtime, chỉ lưu history khi blur */}
-                    <input 
-                      type="text" 
-                      value={selectedEl.text} 
+                    <input
+                      type="text"
+                      value={selectedEl.text}
                       onChange={(e) => {
                         const newText = e.target.value;
                         setElements(elements.map(el => el.id === selectedId ? { ...el, text: newText } : el));
-                      }} 
+                      }}
                       onBlur={() => saveToHistory(elements)}
-                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }} 
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }}
                     />
                   </div>
                   <div className="input-group" style={{ marginBottom: '10px' }}>
@@ -858,7 +1035,6 @@ function App() {
                       <option value="Dancing Script">Dancing Script</option>
                     </select>
                   </div>
-                  {/* ✅ FIX #1: Bold + Italic kết hợp được */}
                   <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
                     <button className="btn" style={{ flex: 1, fontWeight: 'bold', background: selectedEl.fontStyle?.includes('bold') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'bold') })}>B</button>
                     <button className="btn" style={{ flex: 1, fontStyle: 'italic', background: selectedEl.fontStyle?.includes('italic') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'italic') })}>I</button>
@@ -902,7 +1078,7 @@ function App() {
                 <label style={{ fontSize: '13px' }}>Độ mờ (Opacity): {Math.round((selectedEl.opacity ?? 1) * 100)}%</label>
                 <input type="range" min="0" max="1" step="0.05" value={selectedEl.opacity ?? 1} onChange={(e) => updateElement(selectedId, { opacity: parseFloat(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
               </div>
-              
+
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '10px' }}>
                 <input type="checkbox" checked={selectedEl.shadowEnabled || false} onChange={(e) => updateElement(selectedId, { shadowEnabled: e.target.checked })} />
                 <label style={{ fontWeight: 'bold', fontSize: '13px' }}>Bật Đổ bóng</label>
@@ -931,7 +1107,7 @@ function App() {
                 <div style={{ marginBottom: '15px' }}>
                   <label style={{ fontSize: '13px' }}>Màu nền:</label>
                   <input type="color" value={selectedEl.fill === 'transparent' ? '#ffffff' : selectedEl.fill} onChange={(e) => updateElement(selectedId, { fill: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
-                  
+
                   {['rect', 'circle', 'polygon', 'star', 'path', 'icon'].includes(selectedEl.type) && (
                     <>
                       <label style={{ fontSize: '13px' }}>Màu viền:</label>
@@ -945,7 +1121,7 @@ function App() {
             </div>
           )}
         </div>
-        
+
         <button onClick={deleteSelected} style={{ marginTop: '10px', padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
           Xoá vật thể này
         </button>
@@ -953,9 +1129,85 @@ function App() {
     );
   };
 
+  // ==================== LOBBY VIEW ====================
+  if (view === 'lobby') {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        padding: '40px 20px'
+      }}>
+        <div style={{ maxWidth: '960px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <h1 style={{ color: 'white', fontSize: '48px', marginBottom: '8px' }}>
+              <span style={{ color: '#fbbf24' }}>Pixel</span>Craft
+            </h1>
+            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '16px' }}>
+              Chọn project để tiếp tục, hoặc tạo project mới
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '36px' }}>
+            <button onClick={handleCreateProject} style={{
+              padding: '14px 32px', fontSize: '16px', fontWeight: 'bold',
+              background: '#10b981', color: 'white', border: 'none',
+              borderRadius: '10px', cursor: 'pointer',
+              boxShadow: '0 4px 15px rgba(16,185,129,0.4)'
+            }}>+ Tạo Project Mới</button>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: '20px'
+          }}>
+            {projects.length === 0 && (
+              <div style={{
+                gridColumn: '1 / -1', textAlign: 'center',
+                color: 'rgba(255,255,255,0.7)', padding: '60px 20px',
+                fontSize: '15px'
+              }}>Chưa có project nào. Bấm "Tạo Project Mới" để bắt đầu ✨</div>
+            )}
+            {projects.map(p => (
+              <div key={p.id} onClick={() => openProject(p.id)} style={{
+                background: 'white', borderRadius: '12px', padding: '20px',
+                cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+                position: 'relative', transition: 'transform 0.15s'
+              }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <div style={{ fontSize: '30px', marginBottom: '10px' }}>📄</div>
+                <h3 style={{
+                  margin: '0 0 6px', color: '#1f2937', fontSize: '16px',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                }}>{p.name}</h3>
+                <p style={{ margin: 0, color: '#6b7280', fontSize: '12px' }}>
+                  {new Date(p.updatedAt).toLocaleDateString('vi-VN')} ·{' '}
+                  {new Date(p.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+                <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '4px' }}>
+                  <button onClick={e => { e.stopPropagation(); renameProject(p.id); }} title="Đổi tên" style={{
+                    background: '#dbeafe', border: 'none', borderRadius: '50%',
+                    width: '28px', height: '28px', cursor: 'pointer', fontSize: '13px'
+                  }}>✏️</button>
+                  <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }} title="Xoá" style={{
+                    background: '#fee2e2', border: 'none', borderRadius: '50%',
+                    width: '28px', height: '28px', cursor: 'pointer', fontSize: '13px'
+                  }}>🗑️</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== EDITOR VIEW ====================
   return (
-    <div 
-      className="app-container" 
+    <div
+      className="app-container"
       style={{ flexDirection: 'column' }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -976,10 +1228,53 @@ function App() {
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: '#e5e7eb', padding: '10px 15px', borderBottom: '1px solid #d1d5db', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* ✅ Nút Project */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowProjectMenu(v => !v)}
+              style={{
+                padding: '5px 10px', fontSize: '12px', fontWeight: 'bold',
+                borderRadius: '4px', border: '1px solid #ccc', background: '#fff',
+                display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer'
+              }}
+              title="Quản lý project"
+            >📁 Project</button>
+
+            {showProjectMenu && (
+              <>
+                <div onClick={() => setShowProjectMenu(false)} style={{
+                  position: 'fixed', inset: 0, zIndex: 998
+                }} />
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, marginTop: '6px',
+                  background: 'white', border: '1px solid #ddd', borderRadius: '8px',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)', minWidth: '230px',
+                  zIndex: 999, overflow: 'hidden'
+                }}>
+                  <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}>
+                    <div style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Project hiện tại</div>
+                    <div style={{
+                      fontSize: '13px', fontWeight: 'bold', color: '#1f2937',
+                      marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                    }}>
+                      {projects.find(p => p.id === currentProjectId)?.name || 'Untitled'}
+                    </div>
+                  </div>
+                  <button onClick={() => { setShowProjectMenu(false); handleExitProject(); }}
+                    style={PROJECT_MENU_ITEM_STYLE}>🚪 Thoát project</button>
+                  <button onClick={handleNewTabProject}
+                    style={PROJECT_MENU_ITEM_STYLE}>🆕 New tab project</button>
+                  <button onClick={handleNewProject}
+                    style={PROJECT_MENU_ITEM_STYLE}>✨ New project</button>
+                </div>
+              </>
+            )}
+          </div>
+
           <h2 style={{ fontSize: '18px', color: '#1f2937', margin: 0, fontWeight: '700' }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
-          
-          <select 
-            value={`${canvasSize.width}x${canvasSize.height}`} 
+
+          <select
+            value={`${canvasSize.width}x${canvasSize.height}`}
             onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); setCanvasSize({ width: w, height: h }); }}
             style={{ padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold' }}
           >
@@ -1001,10 +1296,10 @@ function App() {
               <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Màu:</label>
               <input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} style={{ width: '25px', height: '25px', padding: 0, border: 'none' }} />
             </div>
-            
+
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', position: 'relative' }}>
               <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                Độ dày 
+                Độ dày
                 <span onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)} style={{ color: '#3b82f6', borderRadius: '50%', border: '1px solid #3b82f6', width: '14px', height: '14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', cursor: 'help' }}>i</span>
               </label>
               {showTooltip && (
@@ -1024,20 +1319,20 @@ function App() {
           <button onClick={handleUndo} disabled={historyStep <= 0} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: historyStep <= 0 ? 'not-allowed' : 'pointer' }}>↩</button>
           <button onClick={handleRedo} disabled={historyStep >= history.length - 1} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: historyStep >= history.length - 1 ? 'not-allowed' : 'pointer' }}>↪</button>
           <button onClick={handleReset} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ef4444', background: '#fee2e2', color: '#ef4444' }}>Xoá hết</button>
-          
+
           <button className="btn btn-success" onClick={exportPng} style={{ padding: '5px 12px', fontSize: '12px' }}>Tải Ảnh PNG</button>
         </div>
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-        
-        <div 
-          style={{ 
-            width: isLeftOpen ? (isMobile ? '100%' : '250px') : '0px', 
-            overflow: 'hidden', 
-            transition: 'width 0.3s', 
-            background: 'white', 
-            position: 'absolute', 
+
+        <div
+          style={{
+            width: isLeftOpen ? (isMobile ? '100%' : '250px') : '0px',
+            overflow: 'hidden',
+            transition: 'width 0.3s',
+            background: 'white',
+            position: 'absolute',
             left: 0,
             zIndex: 100,
             height: '100%',
@@ -1050,9 +1345,9 @@ function App() {
               <h2 style={{ fontSize: '16px', margin: 0 }}>Thư Viện Hình</h2>
               <button onClick={() => setIsLeftOpen(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
             </div>
-            
+
             <ShapeLibrary onAddBasicShape={addBasicShape} onAddIcon={addLucideIcon} onAddPathShape={addPathShape} />
-            
+
             <button className="btn" style={{ width: '100%', background: '#fef08a', color: '#854d0e', fontWeight: 'bold', marginBottom: '10px', border: '1px solid #fde047' }} onClick={() => setIsBuilderOpen(true)}>✨ Tạo Hình Tự Do</button>
 
             {customShapes.length > 0 && (
@@ -1092,7 +1387,7 @@ function App() {
         </div>
 
         {!isMobile && (
-          <button 
+          <button
             onClick={() => setIsLeftOpen(!isLeftOpen)}
             style={{ position: 'absolute', left: isLeftOpen ? '250px' : '0px', top: '50%', transform: 'translateY(-50%)', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderLeft: 'none', borderRadius: '0 5px 5px 0', padding: '10px 5px', cursor: 'pointer', transition: 'left 0.3s', boxShadow: '2px 0 5px rgba(0,0,0,0.1)' }}
           >
@@ -1101,21 +1396,21 @@ function App() {
         )}
 
         <div ref={mainAreaRef} className="main-area" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#e5e7eb', touchAction: 'none' }}>
-          
+
           {!isLeftOpen && (
             <button onClick={() => setIsLeftOpen(true)} style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>📚</button>
           )}
 
-          <Stage 
-            width={mainAreaSize.width} 
-            height={mainAreaSize.height} 
+          <Stage
+            width={mainAreaSize.width}
+            height={mainAreaSize.height}
             onWheel={handleWheel}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            onMouseDown={handleStageMouseDown} 
-            onMousemove={handleStageMouseMove} 
+            onMouseDown={handleStageMouseDown}
+            onMousemove={handleStageMouseMove}
             onMouseup={handleStageMouseUp}
-            onTouchStart={handleStageMouseDown} 
+            onTouchStart={handleStageMouseDown}
             onClick={(e) => {
               if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current) {
                 setSelectedId(null);
@@ -1139,22 +1434,21 @@ function App() {
             scaleY={stageScale}
             x={stagePos.x}
             y={stagePos.y}
-            draggable={currentTool === 'select' && !isRulerMode} 
-            ref={stageRef} 
+            draggable={currentTool === 'select' && !isRulerMode}
+            ref={stageRef}
             style={{ cursor: (currentTool === 'brush' || isRulerMode) ? 'crosshair' : 'grab' }}
           >
             <Layer ref={layerRef}>
               <Rect width={canvasSize.width} height={canvasSize.height} fill={bgColor} shadowColor="#000" shadowBlur={20} shadowOpacity={0.2} listening={false} />
-              
+
               {elements.map(renderShape)}
               {isRulerMode && tempLine && <Line x={tempLine.x} y={tempLine.y} points={tempLine.points} stroke={brushColor} strokeWidth={brushSize} dash={[10, 5]} />}
-              
-              {/* ✅ FIX #4: thêm 'arrow' vào keepRatio để mũi tên không bị méo */}
-              <Transformer 
-                ref={trRef} 
+
+              <Transformer
+                ref={trRef}
                 keepRatio={['circle', 'star', 'text', 'path', 'icon', 'polygon', 'arrow'].includes(selectedEl?.type)}
-                anchorSize={22} anchorCornerRadius={10} anchorStroke="#3b82f6" anchorStrokeWidth={2} anchorFill="#ffffff" borderStroke="#3b82f6" borderStrokeWidth={2} rotateAnchorOffset={40} ignoreStroke={true} 
-                boundBoxFunc={(oldBox, newBox) => { if (newBox.width < 20 || newBox.height < 20) return oldBox; return newBox; }} 
+                anchorSize={22} anchorCornerRadius={10} anchorStroke="#3b82f6" anchorStrokeWidth={2} anchorFill="#ffffff" borderStroke="#3b82f6" borderStrokeWidth={2} rotateAnchorOffset={40} ignoreStroke={true}
+                boundBoxFunc={(oldBox, newBox) => { if (newBox.width < 20 || newBox.height < 20) return oldBox; return newBox; }}
               />
             </Layer>
           </Stage>
@@ -1174,51 +1468,51 @@ function App() {
         </div>
 
         {selectedId && selectedEl && currentTool === 'select' && !isRulerMode && (
-          <button 
+          <button
             onClick={() => setIsRightOpen(!isRightOpen)}
-            style={{ 
-              position: 'absolute', 
-              right: isMobile ? '20px' : (isRightOpen ? '300px' : '0px'), 
-              bottom: isMobile ? (isRightOpen ? 'calc(40vh + 20px)' : '20px') : 'auto', 
-              top: isMobile ? 'auto' : '50%', 
-              transform: isMobile ? 'none' : 'translateY(-50%)', 
-              zIndex: 101, 
-              background: '#fff', 
-              border: '1px solid #ccc', 
-              borderRadius: isMobile ? '50%' : '5px 0 0 5px', 
-              borderRight: isMobile ? '1px solid #ccc' : 'none', 
-              width: isMobile ? '50px' : 'auto', 
-              height: isMobile ? '50px' : 'auto', 
-              padding: isMobile ? '0' : '10px 5px', 
-              cursor: 'pointer', 
-              transition: 'all 0.3s', 
-              boxShadow: '0 4px 10px rgba(0,0,0,0.2)', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              fontSize: isMobile ? '24px' : '20px' 
+            style={{
+              position: 'absolute',
+              right: isMobile ? '20px' : (isRightOpen ? '300px' : '0px'),
+              bottom: isMobile ? (isRightOpen ? 'calc(40vh + 20px)' : '20px') : 'auto',
+              top: isMobile ? 'auto' : '50%',
+              transform: isMobile ? 'none' : 'translateY(-50%)',
+              zIndex: 101,
+              background: '#fff',
+              border: '1px solid #ccc',
+              borderRadius: isMobile ? '50%' : '5px 0 0 5px',
+              borderRight: isMobile ? '1px solid #ccc' : 'none',
+              width: isMobile ? '50px' : 'auto',
+              height: isMobile ? '50px' : 'auto',
+              padding: isMobile ? '0' : '10px 5px',
+              cursor: 'pointer',
+              transition: 'all 0.3s',
+              boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: isMobile ? '24px' : '20px'
             }}
           >
             {isRightOpen ? (isMobile ? '✕' : '▶') : '⚙️'}
           </button>
         )}
 
-        <div 
-          style={{ 
-            position: isMobile ? 'fixed' : 'absolute', 
-            bottom: 0, 
-            right: isMobile ? 0 : 0, 
-            width: isMobile ? '100%' : (isRightOpen && selectedId ? '300px' : '0px'), 
-            height: isMobile ? '40vh' : '100%', 
-            backgroundColor: '#f8fafc', 
-            zIndex: 9999, 
+        <div
+          style={{
+            position: isMobile ? 'fixed' : 'absolute',
+            bottom: 0,
+            right: isMobile ? 0 : 0,
+            width: isMobile ? '100%' : (isRightOpen && selectedId ? '300px' : '0px'),
+            height: isMobile ? '40vh' : '100%',
+            backgroundColor: '#f8fafc',
+            zIndex: 9999,
             transform: (isRightOpen && selectedId) ? 'translateY(0)' : (isMobile ? 'translateY(100%)' : 'translateX(100%)'),
             transition: 'transform 0.3s ease-in-out',
-            borderTopLeftRadius: isMobile ? '15px' : '0', 
+            borderTopLeftRadius: isMobile ? '15px' : '0',
             borderTopRightRadius: isMobile ? '15px' : '0',
-            borderLeft: (!isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none', 
-            borderTop: (isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none', 
-            boxShadow: (isRightOpen && selectedId) ? (isMobile ? '0 -5px 15px rgba(0,0,0,0.1)' : '-5px 0 15px rgba(0,0,0,0.1)') : 'none', 
+            borderLeft: (!isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none',
+            borderTop: (isMobile && isRightOpen && selectedId) ? '1px solid #ddd' : 'none',
+            boxShadow: (isRightOpen && selectedId) ? (isMobile ? '0 -5px 15px rgba(0,0,0,0.1)' : '-5px 0 15px rgba(0,0,0,0.1)') : 'none',
             display: 'flex', flexDirection: 'column',
             onMouseDown: (e) => e.stopPropagation(),
             onTouchStart: (e) => e.stopPropagation(),
