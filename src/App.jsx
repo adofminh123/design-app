@@ -135,8 +135,10 @@ function App() {
   const [currentProjectId, setCurrentProjectId] = useState(null);
   const [openProjectIds, setOpenProjectIds] = useState([]);
   const [showProjectMenu, setShowProjectMenu] = useState(false);
-  // ✅ MỚI: popup khi bấm nút "+" ở taskbar
   const [showAddTabPopup, setShowAddTabPopup] = useState(false);
+  // ✅ Fix: popup fix ra khỏi taskbar, dùng position fixed
+  const addTabBtnRef = useRef(null);
+  const [addTabPopupPos, setAddTabPopupPos] = useState({ left: 0, top: 0 });
 
   const [elements, setElements] = useState(getInitialElements);
   const [customShapes, setCustomShapes] = useState(getInitialCustomShapes);
@@ -206,6 +208,13 @@ function App() {
     const handleResize = () => setIsMobile(window.innerWidth <= 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // ✅ Đóng popup thêm tab khi resize
+  useEffect(() => {
+    const onResize = () => setShowAddTabPopup(false);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   useEffect(() => {
@@ -869,7 +878,6 @@ function App() {
     setOpenProjectIds(filtered);
   };
 
-  // ✅ Tạo project mới nhưng KHÔNG mở prompt nếu đã có tên truyền vào
   const createProjectWithName = (name) => {
     saveCurrentProjectIfAny();
     const id = uuidv4();
@@ -921,7 +929,15 @@ function App() {
     if (data) { try { const proj = JSON.parse(data); proj.name = newName; localStorage.setItem(`project_${id}`, JSON.stringify(proj)); } catch {} }
   };
 
-  // ✅ Danh sách project chưa mở tab
+  // ✅ Mở popup thêm tab với vị trí fixed (không bị taskbar cắt)
+  const openAddTabPopup = () => {
+    if (addTabBtnRef.current) {
+      const rect = addTabBtnRef.current.getBoundingClientRect();
+      setAddTabPopupPos({ left: rect.left, top: rect.bottom + 4 });
+    }
+    setShowAddTabPopup(true);
+  };
+
   const availableProjects = projects.filter(p => !openProjectIds.includes(p.id));
 
   const renderProperties = () => {
@@ -1112,86 +1128,85 @@ function App() {
           );
         })}
 
-        {/* ✅ NÚT "+" MỚI — mở popup thay vì tạo trực tiếp */}
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <button
-            onClick={() => setShowAddTabPopup(v => !v)}
-            title="Thêm tab"
-            style={{
-              padding: '5px 12px',
-              background: showAddTabPopup ? '#3b82f6' : 'rgba(255,255,255,0.4)',
-              color: showAddTabPopup ? '#fff' : '#374151',
-              border: '1px solid #9ca3af',
-              borderRadius: '4px 4px 0 0',
-              cursor: 'pointer', fontSize: '16px', fontWeight: 'bold',
-              marginLeft: '4px', lineHeight: 1
-            }}>+</button>
-
-          {showAddTabPopup && (
-            <>
-              <div onClick={() => setShowAddTabPopup(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-              <div style={{
-                position: 'absolute', top: '100%', left: 0, marginTop: '6px',
-                background: 'white', border: '1px solid #ddd', borderRadius: '8px',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.15)', width: '280px',
-                zIndex: 999, overflow: 'hidden'
-              }}>
-                {/* Header */}
-                <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}>
-                  <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Thêm tab</div>
-                </div>
-
-                {/* Option 1: Tạo project mới */}
-                <button
-                  onClick={() => { setShowAddTabPopup(false); handleCreateProject(); }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    width: '100%', padding: '12px 14px',
-                    background: 'none', border: 'none', textAlign: 'left',
-                    cursor: 'pointer', fontSize: '13px', fontWeight: 'bold',
-                    color: '#10b981', borderBottom: '1px solid #eee'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#ecfdf5'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                  <span style={{ fontSize: '18px' }}>✨</span>
-                  <span>Tạo project mới</span>
-                </button>
-
-                {/* Option 2: Dùng project cũ */}
-                <div style={{ padding: '8px 14px 4px', fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f3f4f6' }}>
-                  Dùng project có sẵn
-                </div>
-
-                <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-                  {availableProjects.length === 0 ? (
-                    <div style={{ padding: '14px', fontSize: '12px', color: '#9ca3af', fontStyle: 'italic', textAlign: 'center' }}>
-                      Không còn project nào
-                    </div>
-                  ) : (
-                    availableProjects.map(p => (
-                      <button key={p.id}
-                        onClick={() => { setShowAddTabPopup(false); openProject(p.id); }}
-                        style={{
-                          display: 'block', width: '100%', padding: '10px 14px',
-                          background: 'none', border: 'none', textAlign: 'left',
-                          cursor: 'pointer', fontSize: '13px', color: '#1f2937',
-                          borderBottom: '1px solid #f9fafb'
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                        <div style={{ fontWeight: '500', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                        <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-                          {new Date(p.updatedAt).toLocaleDateString('vi-VN')} · {new Date(p.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        {/* ✅ Nút "+" — chỉ mở popup, KHÔNG render popup ở đây */}
+        <button
+          ref={addTabBtnRef}
+          onClick={openAddTabPopup}
+          title="Thêm tab"
+          style={{
+            padding: '5px 12px',
+            background: showAddTabPopup ? '#3b82f6' : 'rgba(255,255,255,0.4)',
+            color: showAddTabPopup ? '#fff' : '#374151',
+            border: '1px solid #9ca3af',
+            borderRadius: '4px 4px 0 0',
+            cursor: 'pointer', fontSize: '16px', fontWeight: 'bold',
+            marginLeft: '4px', lineHeight: 1, flexShrink: 0
+          }}>+</button>
       </div>
+
+      {/* ✅ POPUP THÊM TAB — render ngoài taskbar, dùng position: fixed để không bị overflow cắt */}
+      {showAddTabPopup && (
+        <>
+          <div onClick={() => setShowAddTabPopup(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+          <div style={{
+            position: 'fixed',
+            top: addTabPopupPos.top,
+            left: addTabPopupPos.left,
+            background: 'white', border: '1px solid #ddd', borderRadius: '8px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)', width: '280px',
+            zIndex: 999, overflow: 'hidden'
+          }}>
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}>
+              <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Thêm tab</div>
+            </div>
+
+            <button
+              onClick={() => { setShowAddTabPopup(false); handleCreateProject(); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                width: '100%', padding: '12px 14px',
+                background: 'none', border: 'none', textAlign: 'left',
+                cursor: 'pointer', fontSize: '13px', fontWeight: 'bold',
+                color: '#10b981', borderBottom: '1px solid #eee'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#ecfdf5'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+              <span style={{ fontSize: '18px' }}>✨</span>
+              <span>Tạo project mới</span>
+            </button>
+
+            <div style={{ padding: '8px 14px 4px', fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f3f4f6' }}>
+              Dùng project có sẵn
+            </div>
+
+            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+              {availableProjects.length === 0 ? (
+                <div style={{ padding: '14px', fontSize: '12px', color: '#9ca3af', fontStyle: 'italic', textAlign: 'center' }}>
+                  Không còn project nào
+                </div>
+              ) : (
+                availableProjects.map(p => (
+                  <button key={p.id}
+                    onClick={() => { setShowAddTabPopup(false); openProject(p.id); }}
+                    style={{
+                      display: 'block', width: '100%', padding: '10px 14px',
+                      background: 'none', border: 'none', textAlign: 'left',
+                      cursor: 'pointer', fontSize: '13px', color: '#1f2937',
+                      borderBottom: '1px solid #f9fafb'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                    <div style={{ fontWeight: '500', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                      {new Date(p.updatedAt).toLocaleDateString('vi-VN')} · {new Date(p.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Toolbar */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', background: '#e5e7eb', padding: '10px 15px', borderBottom: '1px solid #d1d5db', gap: '10px' }}>
@@ -1338,7 +1353,7 @@ function App() {
             </Layer>
           </Stage>
 
-          {/* ✅ ZOOM POPUP — kéo được, click % để sửa */}
+          {/* Zoom popup */}
           {zoomPopupPos.y !== null && (
             <div
               onMouseDown={handleZoomPopupDragStart}
@@ -1357,8 +1372,7 @@ function App() {
 
               {isEditingZoom ? (
                 <input
-                  autoFocus
-                  type="number"
+                  autoFocus type="number"
                   value={zoomInputValue}
                   onChange={(e) => setZoomInputValue(e.target.value)}
                   onBlur={commitZoom}
@@ -1370,10 +1384,7 @@ function App() {
                 />
               ) : (
                 <div
-                  onClick={() => {
-                    setZoomInputValue(Math.round(stageScale * 100).toString());
-                    setIsEditingZoom(true);
-                  }}
+                  onClick={() => { setZoomInputValue(Math.round(stageScale * 100).toString()); setIsEditingZoom(true); }}
                   title="Click để nhập %"
                   style={{ minWidth: '48px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold', color: '#1f2937', padding: '4px 6px', borderRadius: '6px', cursor: 'text', background: '#f9fafb', border: '1px solid #e5e7eb' }}>
                   {Math.round(stageScale * 100)}%
