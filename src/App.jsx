@@ -131,6 +131,217 @@ const clampStagePos = (pos, mainAreaSize, canvasSize, stageScale) => {
 
 const ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
+// ============================================
+// 🔀 BEND HELPERS
+// ============================================
+const SHAPE_BENDABLE = ['rect', 'polygon', 'star', 'bentShape'];
+
+const getBaseType = (el) => el.baseType || el.type;
+
+const getEdgeCount = (el) => {
+  const bt = getBaseType(el);
+  if (bt === 'rect') return 4;
+  if (bt === 'polygon') return el.sides || 5;
+  if (bt === 'star') return (el.numPoints || 5) * 2;
+  return 0;
+};
+
+const getEdgeMidpoints = (el) => {
+  const bt = getBaseType(el);
+  if (bt === 'rect') {
+    const w = el.width, h = el.height;
+    return [
+      { x: w / 2, y: 0 },
+      { x: w, y: h / 2 },
+      { x: w / 2, y: h },
+      { x: 0, y: h / 2 }
+    ];
+  }
+  if (bt === 'polygon') {
+    const { radius, sides } = el;
+    const verts = [];
+    for (let i = 0; i < sides; i++) {
+      const a = (i * Math.PI * 2) / sides - Math.PI / 2;
+      verts.push({ x: radius * Math.cos(a), y: radius * Math.sin(a) });
+    }
+    const mids = [];
+    for (let i = 0; i < sides; i++) {
+      const nv = verts[(i + 1) % sides];
+      mids.push({ x: (verts[i].x + nv.x) / 2, y: (verts[i].y + nv.y) / 2 });
+    }
+    return mids;
+  }
+  if (bt === 'star') {
+    const { innerRadius, outerRadius, numPoints } = el;
+    const totalPts = numPoints * 2;
+    const verts = [];
+    for (let i = 0; i < totalPts; i++) {
+      const r = i % 2 === 0 ? outerRadius : innerRadius;
+      const a = (i * Math.PI * 2) / totalPts - Math.PI / 2;
+      verts.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
+    }
+    const mids = [];
+    for (let i = 0; i < totalPts; i++) {
+      const nv = verts[(i + 1) % totalPts];
+      mids.push({ x: (verts[i].x + nv.x) / 2, y: (verts[i].y + nv.y) / 2 });
+    }
+    return mids;
+  }
+  return [];
+};
+
+const buildBentPath = (el) => {
+  const bt = getBaseType(el);
+  const bends = el.bends || [];
+
+  if (bt === 'rect') {
+    const w = el.width, h = el.height;
+    const corners = [
+      { x: 0, y: 0 },
+      { x: w, y: 0 },
+      { x: w, y: h },
+      { x: 0, y: h }
+    ];
+    const mids = [
+      { x: w / 2, y: 0 },
+      { x: w, y: h / 2 },
+      { x: w / 2, y: h },
+      { x: 0, y: h / 2 }
+    ];
+    let data = `M ${corners[0].x} ${corners[0].y} `;
+    for (let i = 0; i < 4; i++) {
+      const nc = corners[(i + 1) % 4];
+      const b = bends[i] || { x: 0, y: 0 };
+      data += `Q ${mids[i].x + b.x} ${mids[i].y + b.y} ${nc.x} ${nc.y} `;
+    }
+    return data + 'Z';
+  }
+
+  if (bt === 'polygon') {
+    const { radius, sides } = el;
+    const verts = [];
+    for (let i = 0; i < sides; i++) {
+      const a = (i * Math.PI * 2) / sides - Math.PI / 2;
+      verts.push({ x: radius * Math.cos(a), y: radius * Math.sin(a) });
+    }
+    let data = `M ${verts[0].x} ${verts[0].y} `;
+    for (let i = 0; i < sides; i++) {
+      const nv = verts[(i + 1) % sides];
+      const mx = (verts[i].x + nv.x) / 2;
+      const my = (verts[i].y + nv.y) / 2;
+      const b = bends[i] || { x: 0, y: 0 };
+      data += `Q ${mx + b.x} ${my + b.y} ${nv.x} ${nv.y} `;
+    }
+    return data + 'Z';
+  }
+
+  if (bt === 'star') {
+    const { innerRadius, outerRadius, numPoints } = el;
+    const totalPts = numPoints * 2;
+    const verts = [];
+    for (let i = 0; i < totalPts; i++) {
+      const r = i % 2 === 0 ? outerRadius : innerRadius;
+      const a = (i * Math.PI * 2) / totalPts - Math.PI / 2;
+      verts.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
+    }
+    let data = `M ${verts[0].x} ${verts[0].y} `;
+    for (let i = 0; i < totalPts; i++) {
+      const nv = verts[(i + 1) % totalPts];
+      const mx = (verts[i].x + nv.x) / 2;
+      const my = (verts[i].y + nv.y) / 2;
+      const b = bends[i] || { x: 0, y: 0 };
+      data += `Q ${mx + b.x} ${my + b.y} ${nv.x} ${nv.y} `;
+    }
+    return data + 'Z';
+  }
+
+  return 'M 0 0 Z';
+};
+
+// 🔀 ArcText — render text cong theo cung tròn
+const ArcText = ({ text, fontSize, fontFamily, fontStyle, fill, stroke, strokeWidth, bendAmount, textDecoration, align, width, ...rest }) => {
+  if (!bendAmount || bendAmount === 0) {
+    return (
+      <Text
+        {...rest}
+        text={text} fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle}
+        fill={fill} stroke={stroke} strokeWidth={strokeWidth}
+        textDecoration={textDecoration} align={align} width={width}
+      />
+    );
+  }
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const isBold = fontStyle && fontStyle.includes('bold') ? 'bold ' : '';
+  const isItalic = fontStyle && fontStyle.includes('italic') ? 'italic ' : '';
+  ctx.font = `${isItalic}${isBold}${fontSize}px ${fontFamily || 'Arial'}`;
+
+  const chars = [...text];
+  const charWidths = chars.map(c => ctx.measureText(c).width);
+  const totalWidth = charWidths.reduce((a, b) => a + b, 0);
+
+  if (totalWidth === 0) return null;
+
+  const bendRad = (bendAmount / 100) * Math.PI;
+  const absBendRad = Math.abs(bendRad);
+  if (absBendRad < 0.001) {
+    return (
+      <Text
+        {...rest}
+        text={text} fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle}
+        fill={fill} stroke={stroke} strokeWidth={strokeWidth}
+        textDecoration={textDecoration} align={align} width={width}
+      />
+    );
+  }
+
+  const radius = totalWidth / absBendRad;
+
+  let cumWidth = 0;
+  const charNodes = chars.map((char, i) => {
+    const cw = charWidths[i];
+    const localOffset = cumWidth + cw / 2 - totalWidth / 2;
+    cumWidth += cw;
+
+    const angle = localOffset / radius;
+    let charX, charY, charRotation;
+
+    if (bendAmount > 0) {
+      // Cong lên (smile): tâm cung ở dưới
+      charX = Math.sin(angle) * radius;
+      charY = radius - Math.cos(angle) * radius;
+      charRotation = angle * (180 / Math.PI);
+    } else {
+      // Cong xuống (mếu): tâm cung ở trên
+      charX = Math.sin(angle) * radius;
+      charY = -radius + Math.cos(angle) * radius;
+      charRotation = -angle * (180 / Math.PI);
+    }
+
+    return (
+      <Text
+        key={i}
+        text={char}
+        x={charX}
+        y={charY}
+        rotation={charRotation}
+        fontSize={fontSize}
+        fontFamily={fontFamily}
+        fontStyle={fontStyle}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        textDecoration={textDecoration}
+        offsetX={cw / 2}
+        offsetY={fontSize / 2}
+      />
+    );
+  });
+
+  return <Group {...rest}>{charNodes}</Group>;
+};
+
 function App() {
   const [view, setView] = useState('lobby');
   const [projects, setProjects] = useState(initLegacyProject);
@@ -143,10 +354,12 @@ function App() {
   const projectBtnRef = useRef(null);
   const [projectMenuPos, setProjectMenuPos] = useState({ left: 0, top: 0 });
 
+  // 🔀 Bend mode
+  const [bendMode, setBendMode] = useState(false);
+
   const [mobileDragHint, setMobileDragHint] = useState(false);
   const mobileHintTimeoutRef = useRef(null);
 
-  // ✅ Refs phục vụ arrow-key nudge (tránh spam history)
   const elementsRef = useRef(elements);
   const arrowNudgePendingRef = useRef(false);
 
@@ -235,8 +448,10 @@ function App() {
     document.head.appendChild(link);
   }, []);
 
-  // ✅ Sync ref để keyup luôn có elements mới nhất
   useEffect(() => { elementsRef.current = elements; }, [elements]);
+
+  // Reset bend mode khi đổi shape
+  useEffect(() => { setBendMode(false); }, [selectedId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -346,7 +561,7 @@ function App() {
   }, [mainAreaSize.width, mainAreaSize.height, canvasSize.width, canvasSize.height]);
 
   useEffect(() => {
-    if (selectedId && currentTool === 'select' && !isRulerMode) {
+    if (selectedId && currentTool === 'select' && !isRulerMode && !bendMode) {
       const node = layerRef.current.findOne('#' + selectedId);
       if (node) trRef.current.nodes([node]);
       else trRef.current.nodes([]);
@@ -354,7 +569,7 @@ function App() {
       if (trRef.current) trRef.current.nodes([]);
     }
     if (layerRef.current) layerRef.current.batchDraw();
-  }, [selectedId, elements, currentTool, isRulerMode]);
+  }, [selectedId, elements, currentTool, isRulerMode, bendMode]);
 
   useEffect(() => {
     if (mainAreaSize.height > 0 && zoomPopupPos.y === null) {
@@ -414,11 +629,9 @@ function App() {
         }
         deleteSelected();
       }
-      // ✅ Arrow keys: nhích shape (chuẩn ngành desktop)
       else if (ARROW_KEYS.includes(e.key)) {
-        if (!selectedId) return;
+        if (!selectedId || bendMode) return;
         e.preventDefault();
-        // Đánh dấu có nudge đang chờ để keyup lưu history 1 lần
         arrowNudgePendingRef.current = true;
         const step = e.shiftKey ? 10 : 1;
         let dx = 0, dy = 0;
@@ -426,7 +639,6 @@ function App() {
         if (e.key === 'ArrowDown') dy = step;
         if (e.key === 'ArrowLeft') dx = -step;
         if (e.key === 'ArrowRight') dx = step;
-        // Cập nhật realtime KHÔNG lưu history (tránh spam khi giữ phím)
         setElements(prev => prev.map(item => item.id === selectedId
           ? { ...item, x: (item.x || 0) + dx, y: (item.y || 0) + dy }
           : item
@@ -438,13 +650,13 @@ function App() {
         if (confirmState) { handleConfirmNo(); return; }
         if (showAddTabPopup) { setShowAddTabPopup(false); return; }
         if (showProjectMenu) { setShowProjectMenu(false); return; }
+        if (bendMode) { setBendMode(false); return; }
         if (isRulerMode) { setIsRulerMode(false); setTempLine(null); }
         else if (currentTool !== 'select') setCurrentTool('select');
         else if (selectedId) setSelectedId(null);
       }
     };
 
-    // ✅ Keyup: lưu history 1 lần khi nhả phím arrow (không spam)
     const handleKeyUp = (e) => {
       if (ARROW_KEYS.includes(e.key) && arrowNudgePendingRef.current) {
         const currentElements = elementsRef.current;
@@ -462,7 +674,7 @@ function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [historyStep, history, selectedId, elements, currentTool, isRulerMode, showAddTabPopup, showProjectMenu, promptState, confirmState]);
+  }, [historyStep, history, selectedId, elements, currentTool, isRulerMode, showAddTabPopup, showProjectMenu, promptState, confirmState, bendMode]);
 
   useEffect(() => {
     if (!isMobile) return;
@@ -757,7 +969,7 @@ function App() {
     const center = getCenterPosition();
     const base = { id: uuidv4(), x: center.x, y: center.y, rotation: 0, scaleX: 1, scaleY: 1, stroke: '#000000', strokeWidth: 0, opacity: 1, shadowEnabled: false, shadowColor: '#000000' };
     let newEl = {};
-    if (type === 'text') newEl = { ...base, type, text: 'Văn bản mới', fontSize: 40, fontFamily: 'Montserrat', fontStyle: 'normal', fill: '#000000', width: 200, align: 'center' };
+    if (type === 'text') newEl = { ...base, type, text: 'Văn bản mới', fontSize: 40, fontFamily: 'Montserrat', fontStyle: 'normal', fill: '#000000', width: 200, align: 'center', bendAmount: 0 };
     if (type === 'rect') newEl = { ...base, type, width: 200, height: 150, cornerRadius: 0, fill: '#3b82f6' };
     if (type === 'circle') newEl = { ...base, type, radius: 80, fill: '#ef4444' };
     if (type === 'triangle' || type === 'polygon') newEl = { ...base, type: 'polygon', radius: 80, sides: type === 'triangle' ? 3 : 5, fill: '#eab308' };
@@ -844,7 +1056,7 @@ function App() {
     const node = e.target;
     const scaleX = node.scaleX(); const scaleY = node.scaleY();
     let newProps = { x: node.x(), y: node.y(), rotation: node.rotation() };
-    if (['image', 'rect', 'path', 'icon'].includes(el.type)) newProps = { ...newProps, scaleX, scaleY };
+    if (['image', 'rect', 'path', 'icon', 'bentShape'].includes(el.type)) newProps = { ...newProps, scaleX, scaleY };
     else if (el.type === 'text') { node.scaleX(1); node.scaleY(1); newProps = { ...newProps, width: Math.max(20, node.width() * scaleX), fontSize: Math.max(10, node.fontSize() * scaleY) }; }
     else if (['circle', 'polygon'].includes(el.type)) { node.scaleX(1); node.scaleY(1); newProps = { ...newProps, radius: Math.max(10, node.radius() * scaleX) }; }
     else if (el.type === 'star') { node.scaleX(1); node.scaleY(1); newProps = { ...newProps, innerRadius: Math.max(10, node.innerRadius() * scaleX), outerRadius: Math.max(10, node.outerRadius() * scaleX) }; }
@@ -908,14 +1120,14 @@ function App() {
     } : {};
     const commonProps = {
       id: el.id, x: el.x || 0, y: el.y || 0, rotation: el.rotation || 0,
-      // ✅ FIX DESKTOP: 1-step (luôn draggable) | Mobile: 2-step (chỉ shape đã chọn mới draggable)
-      draggable: currentTool === 'select' && !isRulerMode && (!isMobile || selectedId === el.id),
+      draggable: currentTool === 'select' && !isRulerMode && !bendMode && (!isMobile || selectedId === el.id),
       opacity: el.opacity ?? 1, ...shadowProps,
-      onMouseDown: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
-      onTap: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
+      onMouseDown: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode && !bendMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
+      onTap: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode && !bendMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
       onDragEnd: (e) => saveToHistory(elements.map(item => item.id === el.id ? { ...item, x: e.target.x(), y: e.target.y() } : item)),
       onTransformEnd: (e) => handleTransformEnd(e, el),
     };
+
     if (el.type === 'icon') {
       return (
         <Group key={el.id} {...commonProps} scaleX={el.scaleX || 1} scaleY={el.scaleY || 1}>
@@ -925,9 +1137,41 @@ function App() {
         </Group>
       );
     }
+
+    // 🔀 Bent shape
+    if (el.type === 'bentShape') {
+      const pathData = buildBentPath(el);
+      return (
+        <Path
+          key={el.id}
+          {...commonProps}
+          data={pathData}
+          fill={el.fill}
+          stroke={el.stroke}
+          strokeWidth={el.strokeWidth}
+          scaleX={el.scaleX || 1}
+          scaleY={el.scaleY || 1}
+        />
+      );
+    }
+
+    // 🔀 Bent text hoặc text thường
+    if (el.type === 'text') {
+      const textProps = {
+        ...commonProps,
+        text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily || 'Montserrat',
+        fontStyle: el.fontStyle || 'normal', textDecoration: el.textDecoration || '',
+        align: el.align, fill: el.fill, stroke: el.stroke, strokeWidth: el.strokeWidth,
+        width: el.width, bendAmount: el.bendAmount || 0,
+      };
+      if (el.bendAmount && el.bendAmount !== 0) {
+        return <ArcText key={el.id} {...textProps} />;
+      }
+      return <Text key={el.id} {...textProps} />;
+    }
+
     const finalProps = {
       ...commonProps, stroke: el.stroke, strokeWidth: el.strokeWidth, fill: el.fill,
-      ...(el.type === 'text' && { text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily || 'Montserrat', fontStyle: el.fontStyle || 'normal', textDecoration: el.textDecoration || '', align: el.align }),
       ...(el.type === 'rect' && { width: el.width, height: el.height, cornerRadius: el.cornerRadius || 0, scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
       ...(el.type === 'circle' && { radius: el.radius }),
       ...(el.type === 'polygon' && { radius: el.radius, sides: el.sides }),
@@ -937,7 +1181,6 @@ function App() {
       ...(el.type === 'path' && { data: el.data[0], scaleX: el.scaleX || 1, scaleY: el.scaleY || 1 }),
       ...(el.type === 'brush' && { points: el.points, tension: el.tension, lineCap: 'round', lineJoin: 'round' }),
     };
-    if (el.type === 'text') return <Text key={el.id} {...finalProps} />;
     if (el.type === 'image') return <URLImage key={el.id} {...finalProps} />;
     if (el.type === 'rect') return <Rect key={el.id} {...finalProps} />;
     if (el.type === 'circle') return <Circle key={el.id} {...finalProps} />;
@@ -1076,6 +1319,79 @@ function App() {
 
   const availableProjects = projects.filter(p => !openProjectIds.includes(p.id));
 
+  // 🔀 Convert shape → bentShape
+  const convertToBentShape = () => {
+    if (!selectedEl) return;
+    if (SHAPE_BENDABLE.includes(selectedEl.type) && selectedEl.type !== 'bentShape') {
+      const edgeCount = getEdgeCount(selectedEl);
+      const bentEl = {
+        ...selectedEl,
+        type: 'bentShape',
+        baseType: selectedEl.type,
+        bends: Array.from({ length: edgeCount }, () => ({ x: 0, y: 0 })),
+      };
+      saveToHistory(elements.map(it => it.id === selectedId ? bentEl : it));
+      setBendMode(true);
+    }
+  };
+
+  const renderBendControlPoints = () => {
+    if (!bendMode || !selectedEl || selectedEl.type !== 'bentShape') return null;
+    const midpoints = getEdgeMidpoints(selectedEl);
+    const bends = selectedEl.bends || [];
+
+    return midpoints.map((mp, i) => {
+      const bend = bends[i] || { x: 0, y: 0 };
+      return (
+        <Circle
+          key={`bp-${i}`}
+          x={mp.x + bend.x}
+          y={mp.y + bend.y}
+          radius={8 / stageScale}
+          fill="#fbbf24"
+          stroke="#1f2937"
+          strokeWidth={2 / stageScale}
+          draggable
+          onMouseDown={(e) => { e.cancelBubble = true; }}
+          onTouchStart={(e) => { e.cancelBubble = true; }}
+          onDragMove={(e) => {
+            const nb = { x: e.target.x() - mp.x, y: e.target.y() - mp.y };
+            const newBends = [...bends];
+            newBends[i] = nb;
+            const newElements = elementsRef.current.map(it =>
+              it.id === selectedEl.id ? { ...it, bends: newBends } : it
+            );
+            elementsRef.current = newElements;
+            setElements(newElements);
+          }}
+          onDragEnd={() => {
+            const latest = elementsRef.current;
+            const newHistory = history.slice(0, historyStep + 1);
+            newHistory.push(latest);
+            setHistory(newHistory);
+            setHistoryStep(newHistory.length - 1);
+          }}
+          onDblClick={(e) => {
+            e.cancelBubble = true;
+            const newBends = [...bends];
+            newBends[i] = { x: 0, y: 0 };
+            saveToHistory(elements.map(it =>
+              it.id === selectedEl.id ? { ...it, bends: newBends } : it
+            ));
+          }}
+          onDblTap={(e) => {
+            e.cancelBubble = true;
+            const newBends = [...bends];
+            newBends[i] = { x: 0, y: 0 };
+            saveToHistory(elements.map(it =>
+              it.id === selectedEl.id ? { ...it, bends: newBends } : it
+            ));
+          }}
+        />
+      );
+    });
+  };
+
   const renderProperties = () => {
     if (!selectedId || !selectedEl || currentTool !== 'select' || isRulerMode) return null;
     return (
@@ -1100,6 +1416,8 @@ function App() {
                 <button className="btn" style={{ flex: 1, background: '#bfdbfe', fontSize: '12px', fontWeight: 'bold', padding: '8px 0' }} onClick={centerSelected}>Căn Giữa</button>
                 <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px', padding: '8px 0' }} onClick={duplicateSelected}>Nhân bản</button>
               </div>
+
+              {/* Text controls */}
               {selectedEl.type === 'text' && (
                 <div style={{ marginBottom: '15px' }}>
                   <div className="input-group" style={{ marginBottom: '10px' }}>
@@ -1124,17 +1442,88 @@ function App() {
                     <button className="btn" style={{ flex: 1, fontStyle: 'italic', background: selectedEl.fontStyle?.includes('italic') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'italic') })}>I</button>
                     <button className="btn" style={{ flex: 1, textDecoration: 'underline', background: selectedEl.textDecoration === 'underline' ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { textDecoration: selectedEl.textDecoration === 'underline' ? '' : 'underline' })}>U</button>
                   </div>
+
+                  {/* 🔀 Bend Text */}
+                  <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '6px', marginTop: '10px' }}>
+                    <h4 style={{ fontWeight: 'bold', color: '#92400e', marginBottom: '10px', fontSize: '14px' }}>🔀 Bẻ cong chữ</h4>
+                    <label style={{ fontSize: '13px' }}>Độ cong: {selectedEl.bendAmount || 0}%</label>
+                    <input type="range" min="-100" max="100" value={selectedEl.bendAmount || 0}
+                      onChange={(e) => updateElement(selectedId, { bendAmount: parseInt(e.target.value) })}
+                      style={{ width: '100%', marginBottom: '8px' }} />
+                    <button className="btn" style={{ width: '100%', background: '#fde68a', fontSize: '12px', padding: '6px' }}
+                      onClick={() => updateElement(selectedId, { bendAmount: 0 })}>
+                      ⟲ Reset về thẳng
+                    </button>
+                  </div>
                 </div>
               )}
-              {['rect', 'circle', 'polygon', 'star'].includes(selectedEl.type) && (
+
+              {/* 🔀 Bend Shape section */}
+              {SHAPE_BENDABLE.includes(selectedEl.type) && (
+                <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
+                  <h4 style={{ fontWeight: 'bold', color: '#92400e', marginBottom: '10px', fontSize: '14px' }}>🔀 Bẻ cong shape</h4>
+                  {!bendMode && selectedEl.type !== 'bentShape' && (
+                    <button className="btn" style={{ width: '100%', background: '#fbbf24', fontWeight: 'bold', padding: '10px' }}
+                      onClick={convertToBentShape}>
+                      ✏️ Bật chế độ bẻ cong
+                    </button>
+                  )}
+                  {!bendMode && selectedEl.type === 'bentShape' && (
+                    <button className="btn" style={{ width: '100%', background: '#fbbf24', fontWeight: 'bold', padding: '10px' }}
+                      onClick={() => setBendMode(true)}>
+                      ✏️ Chỉnh sửa độ cong
+                    </button>
+                  )}
+                  {bendMode && (
+                    <>
+                      <p style={{ fontSize: '12px', color: '#92400e', marginBottom: '8px', lineHeight: 1.4 }}>
+                        💡 Kéo các <strong>điểm vàng</strong> trên canvas để bẻ cong.<br />
+                        Double-click điểm để reset cạnh đó.
+                      </p>
+                      <button className="btn" style={{ width: '100%', background: '#10b981', color: 'white', fontWeight: 'bold', marginBottom: '6px', padding: '10px' }}
+                        onClick={() => setBendMode(false)}>
+                        ✓ Xong
+                      </button>
+                      <button className="btn" style={{ width: '100%', background: '#fee2e2', color: '#ef4444', fontSize: '12px', padding: '6px' }}
+                        onClick={() => {
+                          const newBends = (selectedEl.bends || []).map(() => ({ x: 0, y: 0 }));
+                          saveToHistory(elements.map(it => it.id === selectedId ? { ...it, bends: newBends } : it));
+                        }}>
+                        ⟲ Reset tất cả cạnh
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Shape params */}
+              {['rect', 'circle', 'polygon', 'star', 'bentShape'].includes(selectedEl.type) && (
                 <div style={{ background: '#e0e7ff', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
                   <h4 style={{ fontWeight: 'bold', color: '#3730a3', marginBottom: '10px', fontSize: '14px' }}>Tùy chỉnh hình</h4>
                   {selectedEl.type === 'rect' && (<><label style={{ fontSize: '13px' }}>Độ bo góc: {selectedEl.cornerRadius || 0}px</label><input type="range" min="0" max="100" value={selectedEl.cornerRadius || 0} onChange={(e) => updateElement(selectedId, { cornerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>)}
-                  {(selectedEl.type === 'circle' || selectedEl.type === 'polygon') && (<><label style={{ fontSize: '13px' }}>Bán kính: {Math.round(selectedEl.radius)}px</label><input type="range" min="10" max="300" value={selectedEl.radius || 80} onChange={(e) => updateElement(selectedId, { radius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>)}
-                  {selectedEl.type === 'polygon' && (<><label style={{ fontSize: '13px' }}>Số cạnh: {selectedEl.sides}</label><input type="range" min="3" max="20" value={selectedEl.sides || 3} onChange={(e) => updateElement(selectedId, { sides: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>)}
-                  {selectedEl.type === 'star' && (<><label style={{ fontSize: '13px' }}>Số góc: {selectedEl.numPoints}</label><input type="range" min="3" max="20" value={selectedEl.numPoints || 5} onChange={(e) => updateElement(selectedId, { numPoints: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /><label style={{ fontSize: '13px' }}>Độ nhọn:</label><input type="range" min="10" max={selectedEl.outerRadius - 5} value={selectedEl.innerRadius || 40} onChange={(e) => updateElement(selectedId, { innerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>)}
+                  {['circle', 'polygon', 'bentShape'].includes(selectedEl.type) && ['circle', 'polygon'].includes(getBaseType(selectedEl)) && (
+                    <><label style={{ fontSize: '13px' }}>Bán kính: {Math.round(selectedEl.radius)}px</label><input type="range" min="10" max="300" value={selectedEl.radius || 80} onChange={(e) => updateElement(selectedId, { radius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>
+                  )}
+                  {getBaseType(selectedEl) === 'polygon' && (
+                    <><label style={{ fontSize: '13px' }}>Số cạnh: {selectedEl.sides}</label><input type="range" min="3" max="20" value={selectedEl.sides || 3} onChange={(e) => {
+                      const newSides = parseInt(e.target.value);
+                      const newBends = Array.from({ length: newSides }, (_, i) => (selectedEl.bends && selectedEl.bends[i]) || { x: 0, y: 0 });
+                      updateElement(selectedId, { sides: newSides, bends: selectedEl.type === 'bentShape' ? newBends : selectedEl.bends });
+                    }} style={{ width: '100%', marginBottom: '10px' }} /></>
+                  )}
+                  {getBaseType(selectedEl) === 'star' && (
+                    <>
+                      <label style={{ fontSize: '13px' }}>Số góc: {selectedEl.numPoints}</label><input type="range" min="3" max="20" value={selectedEl.numPoints || 5} onChange={(e) => {
+                        const n = parseInt(e.target.value);
+                        const newBends = Array.from({ length: n * 2 }, (_, i) => (selectedEl.bends && selectedEl.bends[i]) || { x: 0, y: 0 });
+                        updateElement(selectedId, { numPoints: n, bends: selectedEl.type === 'bentShape' ? newBends : selectedEl.bends });
+                      }} style={{ width: '100%', marginBottom: '10px' }} />
+                      <label style={{ fontSize: '13px' }}>Độ nhọn:</label><input type="range" min="10" max={selectedEl.outerRadius - 5} value={selectedEl.innerRadius || 40} onChange={(e) => updateElement(selectedId, { innerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+                    </>
+                  )}
                 </div>
               )}
+
               {selectedEl.type === 'image' && (
                 <button className="btn" style={{ width: '100%', background: '#8b5cf6', color: 'white', marginTop: '15px', padding: '12px', fontWeight: 'bold' }} onClick={handleRemoveBg} disabled={isProcessing}>✨ Tách Nền AI (Poof BG)</button>
               )}
@@ -1168,11 +1557,11 @@ function App() {
           )}
           {activeTab === 'colors' && (
             <div>
-              {['text', 'rect', 'circle', 'polygon', 'star', 'path', 'icon'].includes(selectedEl.type) && (
+              {['text', 'rect', 'circle', 'polygon', 'star', 'path', 'icon', 'bentShape'].includes(selectedEl.type) && (
                 <div style={{ marginBottom: '15px' }}>
                   <label style={{ fontSize: '13px' }}>Màu nền:</label>
                   <input type="color" value={selectedEl.fill === 'transparent' ? '#ffffff' : selectedEl.fill} onChange={(e) => updateElement(selectedId, { fill: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
-                  {['rect', 'circle', 'polygon', 'star', 'path', 'icon'].includes(selectedEl.type) && (
+                  {['rect', 'circle', 'polygon', 'star', 'path', 'icon', 'bentShape'].includes(selectedEl.type) && (
                     <>
                       <label style={{ fontSize: '13px' }}>Màu viền:</label>
                       <input type="color" value={selectedEl.stroke || '#000000'} onChange={(e) => updateElement(selectedId, { stroke: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
@@ -1203,31 +1592,17 @@ function App() {
             </h1>
             <p style={{ color: '#6b7280', fontSize: '16px' }}>Chọn project để tiếp tục, hoặc tạo project mới</p>
           </div>
-
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '36px' }}>
-            <button onClick={handleCreateProject} style={{
-              padding: '14px 32px', fontSize: '16px', fontWeight: 'bold',
-              background: '#10b981', color: 'white', border: 'none',
-              borderRadius: '10px', cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(16,185,129,0.3)'
-            }}>+ Tạo Project Mới</button>
+            <button onClick={handleCreateProject} style={{ padding: '14px 32px', fontSize: '16px', fontWeight: 'bold', background: '#10b981', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(16,185,129,0.3)' }}>+ Tạo Project Mới</button>
           </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '20px' }}>
             {projects.length === 0 && (
-              <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#9ca3af', padding: '60px 20px', fontSize: '15px' }}>
-                Chưa có project nào. Bấm "Tạo Project Mới" để bắt đầu ✨
-              </div>
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#9ca3af', padding: '60px 20px', fontSize: '15px' }}>Chưa có project nào. Bấm "Tạo Project Mới" để bắt đầu ✨</div>
             )}
             {projects.map(p => (
-              <div key={p.id} onClick={() => openProject(p.id)} style={{
-                background: 'white', borderRadius: '12px', padding: '20px',
-                cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.05)',
-                position: 'relative', transition: 'transform 0.15s, box-shadow 0.15s'
-              }}
+              <div key={p.id} onClick={() => openProject(p.id)} style={{ background: 'white', borderRadius: '12px', padding: '20px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.05)', position: 'relative', transition: 'transform 0.15s, box-shadow 0.15s' }}
                 onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.1)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.05)'; }}
-              >
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.05)'; }}>
                 <div style={{ fontSize: '30px', marginBottom: '10px' }}>📄</div>
                 <h3 style={{ margin: '0 0 6px', color: '#1f2937', fontSize: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</h3>
                 <p style={{ margin: 0, color: '#6b7280', fontSize: '12px' }}>
@@ -1340,9 +1715,7 @@ function App() {
               <span style={{ fontSize: '18px' }}>✨</span>
               <span>Tạo project mới</span>
             </button>
-            <div style={{ padding: '8px 14px 4px', fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f3f4f6' }}>
-              Dùng project có sẵn
-            </div>
+            <div style={{ padding: '8px 14px 4px', fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #f3f4f6' }}>Dùng project có sẵn</div>
             <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
               {availableProjects.length === 0 ? (
                 <div style={{ padding: '14px', fontSize: '12px', color: '#9ca3af', fontStyle: 'italic', textAlign: 'center' }}>Không còn project nào</div>
@@ -1505,7 +1878,7 @@ function App() {
             <button onClick={() => setIsLeftOpen(true)} style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>📚</button>
           )}
 
-          {selectedId && isMobile && (
+          {selectedId && isMobile && !bendMode && (
             <button onClick={() => setSelectedId(null)} title="Bỏ chọn"
               style={{
                 position: 'absolute', top: '10px', right: '10px',
@@ -1516,7 +1889,7 @@ function App() {
               }}>✕</button>
           )}
 
-          {isMobile && mobileDragHint && selectedId && (
+          {isMobile && mobileDragHint && selectedId && !bendMode && (
             <div style={{
               position: 'absolute', top: '60px', left: '50%', transform: 'translateX(-50%)',
               background: 'rgba(31,41,55,0.9)', color: 'white', padding: '8px 14px',
@@ -1528,12 +1901,25 @@ function App() {
             </div>
           )}
 
+          {/* 🔀 Bend mode hint */}
+          {bendMode && (
+            <div style={{
+              position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)',
+              background: 'rgba(251,191,36,0.95)', color: '#78350f', padding: '8px 16px',
+              borderRadius: '20px', fontSize: '12px', fontWeight: 'bold',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 22,
+              pointerEvents: 'none', whiteSpace: 'nowrap'
+            }}>
+              🔀 Kéo điểm vàng để bẻ cong · Double-click để reset
+            </div>
+          )}
+
           <Stage
             width={mainAreaSize.width} height={mainAreaSize.height}
             onWheel={handleWheel} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
             onMouseDown={handleStageMouseDown} onMousemove={handleStageMouseMove} onMouseup={handleStageMouseUp} onTouchStart={handleStageMouseDown}
-            onClick={(e) => { if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current) setSelectedId(null); }}
-            onTap={(e) => { if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current) setSelectedId(null); }}
+            onClick={(e) => { if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current && !bendMode) setSelectedId(null); }}
+            onTap={(e) => { if (e.target === e.target.getStage() && currentTool === 'select' && !isRulerMode && !isCanvasDragging.current && !bendMode) setSelectedId(null); }}
             onDragStart={(e) => { if (e.target === e.target.getStage()) isCanvasDragging.current = true; }}
             onDragEnd={(e) => {
               if (e.target === e.target.getStage()) {
@@ -1546,7 +1932,7 @@ function App() {
             }}
             dragBoundFunc={(pos) => clampStagePos(pos, mainAreaSize, canvasSize, stageScale)}
             scaleX={stageScale} scaleY={stageScale} x={stagePos.x} y={stagePos.y}
-            draggable={currentTool === 'select' && !isRulerMode}
+            draggable={currentTool === 'select' && !isRulerMode && !bendMode}
             ref={stageRef}
             style={{ cursor: (currentTool === 'brush' || isRulerMode) ? 'crosshair' : 'grab' }}
           >
@@ -1558,6 +1944,20 @@ function App() {
                 anchorSize={isMobile ? 28 : 22} anchorCornerRadius={isMobile ? 14 : 10} anchorStroke="#3b82f6" anchorStrokeWidth={2} anchorFill="#ffffff" borderStroke="#3b82f6" borderStrokeWidth={2} rotateAnchorOffset={isMobile ? 48 : 40} ignoreStroke={true}
                 boundBoxFunc={(oldBox, newBox) => { if (newBox.width < 20 || newBox.height < 20) return oldBox; return newBox; }} />
             </Layer>
+
+            {/* 🔀 Bend control points layer */}
+            {bendMode && selectedEl && selectedEl.type === 'bentShape' && (
+              <Layer>
+                <Group
+                  x={selectedEl.x || 0} y={selectedEl.y || 0}
+                  rotation={selectedEl.rotation || 0}
+                  scaleX={selectedEl.scaleX || 1}
+                  scaleY={selectedEl.scaleY || 1}
+                >
+                  {renderBendControlPoints()}
+                </Group>
+              </Layer>
+            )}
           </Stage>
 
           {/* ZOOM POPUP */}
@@ -1611,7 +2011,7 @@ function App() {
           )}
         </div>
 
-        {selectedId && selectedEl && currentTool === 'select' && !isRulerMode && (
+        {selectedId && selectedEl && currentTool === 'select' && !isRulerMode && !bendMode && (
           <button onClick={() => setIsRightOpen(!isRightOpen)} style={{ position: 'absolute', right: isMobile ? '20px' : (isRightOpen ? '300px' : '0px'), bottom: isMobile ? (isRightOpen ? 'calc(40vh + 20px)' : '20px') : 'auto', top: isMobile ? 'auto' : '50%', transform: isMobile ? 'none' : 'translateY(-50%)', zIndex: 101, background: '#fff', border: '1px solid #ccc', borderRadius: isMobile ? '50%' : '5px 0 0 5px', borderRight: isMobile ? '1px solid #ccc' : 'none', width: isMobile ? '50px' : 'auto', height: isMobile ? '50px' : 'auto', padding: isMobile ? '0' : '10px 5px', cursor: 'pointer', transition: 'all 0.3s', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? '24px' : '20px' }}>
             {isRightOpen ? (isMobile ? '✕' : '▶') : '⚙️'}
           </button>
