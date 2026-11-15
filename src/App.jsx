@@ -138,9 +138,12 @@ function App() {
   const [showAddTabPopup, setShowAddTabPopup] = useState(false);
   const addTabBtnRef = useRef(null);
   const [addTabPopupPos, setAddTabPopupPos] = useState({ left: 0, top: 0 });
-  // ✅ Fix: nút Project popup ngoài toolbar
   const projectBtnRef = useRef(null);
   const [projectMenuPos, setProjectMenuPos] = useState({ left: 0, top: 0 });
+
+  // ✅ Fix: hint khi select shape trên mobile
+  const [mobileDragHint, setMobileDragHint] = useState(false);
+  const mobileHintTimeoutRef = useRef(null);
 
   // Custom modal states
   const promptResolveRef = useRef(null);
@@ -254,7 +257,6 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ✅ Đóng CẢ 2 popup khi resize
   useEffect(() => {
     const onResize = () => {
       setShowAddTabPopup(false);
@@ -418,6 +420,16 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [historyStep, history, selectedId, elements, currentTool, isRulerMode, showAddTabPopup, showProjectMenu, promptState, confirmState]);
+
+  // ✅ Fix: hiện hint "chạm lần 2 để kéo" khi select trên mobile
+  useEffect(() => {
+    if (!isMobile) return;
+    if (!selectedId) { setMobileDragHint(false); return; }
+    setMobileDragHint(true);
+    if (mobileHintTimeoutRef.current) clearTimeout(mobileHintTimeoutRef.current);
+    mobileHintTimeoutRef.current = setTimeout(() => setMobileDragHint(false), 1800);
+    return () => { if (mobileHintTimeoutRef.current) clearTimeout(mobileHintTimeoutRef.current); };
+  }, [selectedId, isMobile]);
 
   const saveToHistory = (newElements) => {
     const newHistory = history.slice(0, historyStep + 1);
@@ -854,7 +866,8 @@ function App() {
     } : {};
     const commonProps = {
       id: el.id, x: el.x || 0, y: el.y || 0, rotation: el.rotation || 0,
-      draggable: currentTool === 'select' && !isRulerMode && (isMobile || selectedId === el.id),
+      // ✅ Fix: chỉ shape ĐÃ CHỌN mới draggable (chuẩn ngành, tránh accidental drag + pinch conflict)
+      draggable: currentTool === 'select' && !isRulerMode && selectedId === el.id,
       opacity: el.opacity ?? 1, ...shadowProps,
       onMouseDown: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
       onTap: (e) => { e.cancelBubble = true; if (currentTool === 'select' && !isRulerMode) { setSelectedId(el.id); if (isMobile) setIsRightOpen(true); } },
@@ -1005,7 +1018,6 @@ function App() {
     setShowAddTabPopup(true);
   };
 
-  // ✅ Fix: nút Project dùng position fixed
   const openProjectMenu = () => {
     if (showProjectMenu) { setShowProjectMenu(false); return; }
     if (projectBtnRef.current) {
@@ -1310,7 +1322,7 @@ function App() {
         </>
       )}
 
-      {/* ✅ POPUP PROJECT — ngoài toolbar, position fixed */}
+      {/* Popup Project */}
       {showProjectMenu && (
         <>
           <div onClick={() => setShowProjectMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
@@ -1344,7 +1356,6 @@ function App() {
         WebkitOverflowScrolling: 'touch'
       }}>
         <div style={{ display: 'flex', gap: isMobile ? '8px' : '10px', alignItems: 'center', flexWrap: isMobile ? 'nowrap' : 'wrap', flexShrink: 0 }}>
-          {/* ✅ Nút Project — chỉ button, popup render ngoài */}
           <button
             ref={projectBtnRef}
             onClick={openProjectMenu}
@@ -1461,6 +1472,20 @@ function App() {
                 zIndex: 20, fontSize: '16px', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0
               }}>✕</button>
+          )}
+
+          {/* ✅ Hint nhỏ "chạm lần 2 để kéo" trên mobile */}
+          {isMobile && mobileDragHint && selectedId && (
+            <div style={{
+              position: 'absolute', top: '60px', left: '50%', transform: 'translateX(-50%)',
+              background: 'rgba(31,41,55,0.9)', color: 'white', padding: '8px 14px',
+              borderRadius: '20px', fontSize: '12px', fontWeight: '500',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 21,
+              pointerEvents: 'none', whiteSpace: 'nowrap',
+              animation: 'fadeInOut 1.8s ease-in-out'
+            }}>
+              👆 Chạm lần 2 để kéo
+            </div>
           )}
 
           <Stage
