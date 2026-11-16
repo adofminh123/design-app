@@ -8,6 +8,102 @@ import * as LucideIcons from 'lucide-react';
 import ShapeLibrary from './components/ShapeLibrary';
 import './App.css';
 
+// ============= SVG ICON SET =============
+const ICON_PATHS = {
+  eye: <><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></>,
+  eyeOff: <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></>,
+  folder: <><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></>,
+  folderOpen: <><path d="M6 14l1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></>,
+  layers: <><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></>,
+  save: <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>,
+  undo: <><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></>,
+  redo: <><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></>,
+  brush: <><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></>,
+  ruler: <><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></>,
+  cursor: <><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="M13 13l6 6"/></>,
+  x: <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+  plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+  minus: <><line x1="5" y1="12" x2="19" y2="12"/></>,
+  trash: <><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>,
+  download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>,
+  image: <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></>,
+  sparkles: <><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></>,
+  bend: <><path d="M3 20c4-8 14-16 18-16"/><circle cx="3" cy="20" r="1.5"/><circle cx="21" cy="4" r="1.5"/></>,
+  edit: <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>,
+  check: <><polyline points="20 6 9 17 4 12"/></>,
+  rotateCcw: <><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></>,
+  refresh: <><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>,
+  alert: <><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>,
+  info: <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>,
+  moon: <><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></>,
+  sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></>,
+  logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></>,
+  file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></>,
+  book: <><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>,
+  square: <><rect x="3" y="3" width="18" height="18" rx="2"/></>,
+  circle: <><circle cx="12" cy="12" r="10"/></>,
+  triangle: <><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></>,
+  star: <><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></>,
+  arrowRight: <><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></>,
+  type: <><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></>,
+  bold: <><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></>,
+  italic: <><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></>,
+  underline: <><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></>,
+  pen: <><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></>,
+  chevronLeft: <><polyline points="15 18 9 12 15 6"/></>,
+  chevronRight: <><polyline points="9 18 15 12 9 6"/></>,
+  up: <><polyline points="18 15 12 9 6 15"/></>,
+  down: <><polyline points="6 9 12 15 18 9"/></>,
+  alignLeft: <><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></>,
+  alignCenterH: <><line x1="18" y1="10" x2="6" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="18" y1="18" x2="6" y2="18"/></>,
+  alignRight: <><line x1="21" y1="10" x2="7" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></>,
+  alignTop: <><line x1="6" y1="21" x2="6" y2="3"/><line x1="10" y1="21" x2="10" y2="7"/><line x1="14" y1="21" x2="14" y2="3"/><line x1="18" y1="21" x2="18" y2="7"/></>,
+  alignCenterV: <><line x1="12" y1="3" x2="12" y2="21"/><line x1="8" y1="6" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="18"/></>,
+  alignBottom: <><line x1="6" y1="3" x2="6" y2="21"/><line x1="10" y1="3" x2="10" y2="17"/><line x1="14" y1="3" x2="14" y2="21"/><line x1="18" y1="3" x2="18" y2="17"/></>,
+  copy: <><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>,
+  droplet: <><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></>,
+  sliders: <><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></>,
+  settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
+};
+
+const Icon = ({ name, size = 16, style, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    style={{ flexShrink: 0, display: 'inline-block', verticalAlign: 'middle', ...style }} {...props}>
+    {ICON_PATHS[name] || null}
+  </svg>
+);
+
+const getLayerIconName = (el) => {
+  if (el.type === 'text') return 'type';
+  if (el.type === 'image') return 'image';
+  if (el.type === 'rect') return 'square';
+  if (el.type === 'circle') return 'circle';
+  if (el.type === 'polygon') return 'triangle';
+  if (el.type === 'star') return 'star';
+  if (el.type === 'arrow') return 'arrowRight';
+  if (el.type === 'path') return 'pen';
+  if (el.type === 'icon') return 'sparkles';
+  if (el.type === 'brush') return 'pen';
+  if (el.type === 'bentShape') return 'bend';
+  return 'file';
+};
+
+const getLayerName = (el) => {
+  if (el.type === 'text') return el.text?.slice(0, 20) || 'Văn bản';
+  if (el.type === 'image') return 'Hình ảnh';
+  if (el.type === 'rect') return 'Chữ nhật';
+  if (el.type === 'circle') return 'Hình tròn';
+  if (el.type === 'polygon') return `Đa giác ${el.sides || 5}`;
+  if (el.type === 'star') return `Ngôi sao ${el.numPoints || 5}`;
+  if (el.type === 'arrow') return 'Mũi tên';
+  if (el.type === 'path') return 'Đường dẫn';
+  if (el.type === 'icon') return 'Biểu tượng';
+  if (el.type === 'brush') return 'Nét vẽ';
+  if (el.type === 'bentShape') return 'Hình uốn cong';
+  return el.type;
+};
+
 const POOF_BG_API_KEYS = ['pk_f03da1265a86e47c1113d8753f8d5291', 'pk_bcb6518335e63ac9ef2b1fa893f267c1'];
 const ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 const SHAPE_BENDABLE = ['rect', 'polygon', 'star', 'bentShape'];
@@ -16,11 +112,8 @@ const getBaseType = (el) => el.baseType || el.type;
 const isDarkColor = (hex) => {
   if (!hex || hex.length < 7) return false;
   const c = hex.replace('#', '');
-  const r = parseInt(c.substr(0, 2), 16);
-  const g = parseInt(c.substr(2, 2), 16);
-  const b = parseInt(c.substr(4, 2), 16);
-  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return lum < 0.5;
+  const r = parseInt(c.substr(0, 2), 16); const g = parseInt(c.substr(2, 2), 16); const b = parseInt(c.substr(4, 2), 16);
+  return ((0.299 * r + 0.587 * g + 0.114 * b) / 255) < 0.5;
 };
 
 const getSvgPoints = (cx, cy, r, sides, isStar = false, innerR = 0) => {
@@ -85,7 +178,7 @@ const initLegacyProject = () => {
   return [];
 };
 
-const MENU_ITEM = { display: 'block', width: '100%', padding: '10px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '13px', color: '#1f2937' };
+const MENU_ITEM = { display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '10px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '13px', color: '#1f2937' };
 
 const clampStagePos = (pos, mainAreaSize, canvasSize, stageScale) => {
   const sw = canvasSize.width * stageScale, sh = canvasSize.height * stageScale;
@@ -152,11 +245,7 @@ const URLImage = ({ src, brightness, contrast, blurRadius, saturate, ...props })
   const hasFilters = (brightness ?? 0) !== 0 || (contrast ?? 0) !== 0 || (blurRadius ?? 0) > 0 || (saturate ?? 1) !== 1;
   useEffect(() => {
     if (!ref.current || !image) return;
-    try {
-      if (hasFilters) { ref.current.cache(); }
-      else { ref.current.clearCache(); }
-      ref.current.getLayer()?.batchDraw();
-    } catch {}
+    try { if (hasFilters) ref.current.cache(); else ref.current.clearCache(); ref.current.getLayer()?.batchDraw(); } catch {}
   }, [brightness, contrast, blurRadius, saturate, image, hasFilters]);
   return <KonvaImage ref={ref} image={image} filters={[Konva.Filters.Brighten, Konva.Filters.Contrast, Konva.Filters.Blur, Konva.Filters.HSL]} brightness={brightness ?? 0} contrast={contrast ?? 0} blurRadius={blurRadius ?? 0} saturation={saturate ?? 1} {...props} />;
 };
@@ -182,8 +271,7 @@ const CanvasBg = ({ bgImage, bgColor, canvasSize }) => {
 };
 
 const ArcText = ({ text, fontSize, fontFamily, fontStyle, fill, stroke, strokeWidth, bendAmount, textDecoration, align, width, ...rest }) => {
-  const baseOffsetX = (width || 200) / 2;
-  const baseOffsetY = (fontSize || 40) / 2;
+  const baseOffsetX = (width || 200) / 2; const baseOffsetY = (fontSize || 40) / 2;
   if (!bendAmount || bendAmount === 0) {
     return <Text {...rest} text={text} fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle} fill={fill} stroke={stroke} strokeWidth={strokeWidth} textDecoration={textDecoration} align={align} width={width} />;
   }
@@ -217,6 +305,19 @@ const ArcText = ({ text, fontSize, fontFamily, fontStyle, fill, stroke, strokeWi
     );
   });
   return <Group {...rest}>{charNodes}</Group>;
+};
+
+// ============= ICON BUTTON HELPER =============
+const IconBtn = ({ icon, size = 14, label, active, onClick, title, variant = 'default', disabled }) => {
+  const bg = active ? '#3b82f6' : variant === 'danger' ? '#fee2e2' : variant === 'success' ? '#10b981' : '#fff';
+  const color = active ? '#fff' : variant === 'danger' ? '#ef4444' : variant === 'success' ? '#fff' : '#333';
+  return (
+    <button onClick={onClick} disabled={disabled} title={title || label}
+      style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '12px', fontWeight: '600', borderRadius: '4px', border: '1px solid #ccc', background: bg, color, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
+      <Icon name={icon} size={size} />
+      {label && <span>{label}</span>}
+    </button>
+  );
 };
 
 function App() {
@@ -288,14 +389,14 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const projectId = params.get('project'); if (!projectId) return;
     try {
-      const data = localStorage.getItem(`project_${projectId}`); if (!data) { alert('Project không tồn tại'); return; }
+      const data = localStorage.getItem(`project_${projectId}`); if (!data) { alert('Dự án không tồn tại'); return; }
       const project = JSON.parse(data);
       setElements(project.elements || []); setBgColor(project.bgColor || '#ffffff'); setBgImage(project.bgImage || null);
       setCanvasSize(project.canvasSize || { width: 800, height: 600 });
       setHistory([project.elements || []]); setHistoryStep(0);
       setCurrentProjectId(projectId); setOpenProjectIds([projectId]); setView('editor');
       window.history.replaceState({}, '', window.location.pathname);
-    } catch { alert('Lỗi mở project'); }
+    } catch { alert('Không thể mở dự án'); }
   }, []);
 
   useEffect(() => { const h = () => setIsMobile(window.innerWidth <= 1024); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
@@ -432,7 +533,7 @@ function App() {
   const handleUndo = () => { if (historyStep > 0) { const ps = historyStep - 1; setHistoryStep(ps); setElements(history[ps]); setSelectedIds([]); } };
   const handleRedo = () => { if (historyStep < history.length - 1) { const ns = historyStep + 1; setHistoryStep(ns); setElements(history[ns]); setSelectedIds([]); } };
   const handleReset = async () => {
-    const ok = await showConfirm("Bạn có chắc chắn muốn ĐẶT LẠI TỪ ĐẦU?"); if (!ok) return;
+    const ok = await showConfirm("Bạn có chắc chắn muốn đặt lại toàn bộ thiết kế?"); if (!ok) return;
     setElements([]); setBgColor('#ffffff'); setBgImage(null); setSelectedIds([]); setCurrentTool('select'); setHistory([[]]); setHistoryStep(0);
     setStageScale(1); userHasMovedCanvas.current = false;
     setStagePos({ x: mainAreaSize.width / 2 - canvasSize.width / 2, y: mainAreaSize.height / 2 - canvasSize.height / 2 });
@@ -539,8 +640,8 @@ function App() {
           if (parsed.bgColor) setBgColor(parsed.bgColor);
           if (parsed.bgImage !== undefined) setBgImage(parsed.bgImage);
           if (parsed.canvasSize) setCanvasSize(parsed.canvasSize);
-          setSelectedIds([]); alert("Kéo thả dự án thành công!");
-        } catch { alert("File JSON không hợp lệ!"); }
+          setSelectedIds([]); alert("Đã nhập dự án thành công");
+        } catch { alert("Tệp JSON không hợp lệ"); }
       };
       reader.readAsText(file);
     } else if (file.type.startsWith('image/')) {
@@ -598,6 +699,7 @@ function App() {
   const handleRemoveBg = async () => {
     if (!selectedId) return;
     setIsProcessing(true);
+    setProcessingText('Đang tách nền bằng AI...');
     try {
       const element = elements.find(el => el.id === selectedId);
       if (!element || element.type !== 'image') return;
@@ -606,14 +708,13 @@ function App() {
       const fd = new FormData(); fd.append('file', blob, 'image.jpg');
       let sb = null;
       for (let i = 0; i < POOF_BG_API_KEYS.length; i++) {
-        setProcessingText(`Đang tách nền (API ${i + 1})...`);
         try { const r = await fetch('https://api.poof.bg/v1/remove', { method: 'POST', headers: { 'x-api-key': POOF_BG_API_KEYS[i] }, body: fd }); if (r.ok) { sb = await r.blob(); break; } } catch {}
       }
       if (sb) {
         const reader = new FileReader();
         reader.onload = () => { saveToHistory(elements.map(el => el.id === selectedId ? { ...el, src: reader.result } : el)); setIsProcessing(false); };
         reader.readAsDataURL(sb);
-      } else throw new Error('Tất cả API đều thất bại.');
+      } else throw new Error('Không thể tách nền. Vui lòng thử lại sau.');
     } catch (error) { alert("Lỗi: " + error.message); setIsProcessing(false); }
   };
 
@@ -702,9 +803,9 @@ function App() {
     saveToHistory([...elements, ne]); setSelectedIds([ne.id]);
     if (isMobile) { setIsLeftOpen(false); setIsRightOpen(true); }
   };
-  const saveCustomShape = () => { setCustomShapes([...customShapes, { ...draftShape, id: 'custom_' + uuidv4(), name: 'Hình Tự Do' }]); setIsBuilderOpen(false); };
-  const deleteCustomShape = async (e, id) => { e.stopPropagation(); const ok = await showConfirm("Xoá hình này khỏi thư viện?"); if (!ok) return; setCustomShapes(customShapes.filter(s => s.id !== id)); };
-  const deleteAllCustomShapes = async () => { const ok = await showConfirm("XOÁ TẤT CẢ hình tự do?"); if (!ok) return; setCustomShapes([]); };
+  const saveCustomShape = () => { setCustomShapes([...customShapes, { ...draftShape, id: 'custom_' + uuidv4(), name: 'Hình tùy chỉnh' }]); setIsBuilderOpen(false); };
+  const deleteCustomShape = async (e, id) => { e.stopPropagation(); const ok = await showConfirm("Xóa hình này khỏi thư viện?"); if (!ok) return; setCustomShapes(customShapes.filter(s => s.id !== id)); };
+  const deleteAllCustomShapes = async () => { const ok = await showConfirm("Xóa toàn bộ hình tùy chỉnh?"); if (!ok) return; setCustomShapes([]); };
 
   const addPathShape = (pathData) => {
     setCurrentTool('select'); setIsRulerMode(false);
@@ -763,7 +864,7 @@ function App() {
   };
 
   const exportPng = async () => {
-    const fn = await showPrompt("Nhập tên file ảnh:", "pixelcraft-image"); if (!fn) return;
+    const fn = await showPrompt("Nhập tên tệp ảnh:", "pixelcraft-image"); if (!fn) return;
     if (trRef.current) trRef.current.hide();
     const oS = stageRef.current.scaleX(), oP = stageRef.current.position();
     stageRef.current.scale({ x: 1, y: 1 }); stageRef.current.position({ x: 0, y: 0 }); stageRef.current.batchDraw();
@@ -774,7 +875,7 @@ function App() {
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
   const saveProject = async () => {
-    const fn = await showPrompt("Nhập tên file dự án:", "pixelcraft-project"); if (!fn) return;
+    const fn = await showPrompt("Nhập tên tệp dự án:", "pixelcraft-project"); if (!fn) return;
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ elements, bgColor, bgImage, canvasSize }));
     const a = document.createElement('a'); a.setAttribute("href", dataStr); a.setAttribute("download", `${fn}.json`);
     document.body.appendChild(a); a.click(); a.remove();
@@ -789,8 +890,8 @@ function App() {
         if (p.bgColor) setBgColor(p.bgColor);
         if (p.bgImage !== undefined) setBgImage(p.bgImage);
         if (p.canvasSize) setCanvasSize(p.canvasSize);
-        setSelectedIds([]); alert("Mở file thành công!");
-      } catch { alert("File không hợp lệ!"); }
+        setSelectedIds([]); alert("Đã tải dự án thành công");
+      } catch { alert("Tệp không hợp lệ"); }
     };
     reader.readAsText(file); e.target.value = null;
   };
@@ -913,7 +1014,7 @@ function App() {
       return true;
     } catch { return false; }
   };
-  const openProject = (id) => { if (currentProjectId && currentProjectId !== id) saveCurrentProjectIfAny(); if (!loadProjectData(id)) return alert('Project không tồn tại'); setOpenProjectIds(prev => prev.includes(id) ? prev : [...prev, id]); setView('editor'); };
+  const openProject = (id) => { if (currentProjectId && currentProjectId !== id) saveCurrentProjectIfAny(); if (!loadProjectData(id)) return alert('Dự án không tồn tại'); setOpenProjectIds(prev => prev.includes(id) ? prev : [...prev, id]); setView('editor'); };
   const switchProject = (id) => { if (id === currentProjectId) return; saveCurrentProjectIfAny(); loadProjectData(id); };
   const closeProjectTab = (id) => { const f = openProjectIds.filter(p => p !== id); if (currentProjectId === id) { if (f.length > 0) switchProject(f[f.length - 1]); else { saveCurrentProjectIfAny(); setView('lobby'); setCurrentProjectId(null); setSelectedIds([]); } } setOpenProjectIds(f); };
   const createProjectWithName = (name) => {
@@ -922,10 +1023,10 @@ function App() {
     const nl = [...projects, { id, name, createdAt: now, updatedAt: now }];
     localStorage.setItem('projects', JSON.stringify(nl)); setProjects(nl); openProject(id);
   };
-  const handleCreateProject = async () => { const n = await showPrompt('Tên project mới:', `Dự án ${projects.length + 1}`); if (!n) return; createProjectWithName(n); };
+  const handleCreateProject = async () => { const n = await showPrompt('Tên dự án mới:', `Dự án ${projects.length + 1}`); if (!n) return; createProjectWithName(n); };
   const handleExitProject = () => { saveCurrentProjectIfAny(); setView('lobby'); setCurrentProjectId(null); setSelectedIds([]); setShowProjectMenu(false); setOpenProjectIds([]); };
   const handleNewTabProject = () => { setShowProjectMenu(false); handleCreateProject(); };
-  const deleteProject = async (id) => { const ok = await showConfirm('Xoá project này?'); if (!ok) return; localStorage.removeItem(`project_${id}`); const nl = projects.filter(p => p.id !== id); localStorage.setItem('projects', JSON.stringify(nl)); setProjects(nl); setOpenProjectIds(prev => prev.filter(p => p !== id)); if (currentProjectId === id) { setView('lobby'); setCurrentProjectId(null); setSelectedIds([]); } };
+  const deleteProject = async (id) => { const ok = await showConfirm('Xóa dự án này? Hành động không thể hoàn tác.'); if (!ok) return; localStorage.removeItem(`project_${id}`); const nl = projects.filter(p => p.id !== id); localStorage.setItem('projects', JSON.stringify(nl)); setProjects(nl); setOpenProjectIds(prev => prev.filter(p => p !== id)); if (currentProjectId === id) { setView('lobby'); setCurrentProjectId(null); setSelectedIds([]); } };
   const renameProject = async (id) => { const p = projects.find(x => x.id === id); if (!p) return; const n = await showPrompt('Tên mới:', p.name); if (!n || n === p.name) return; const nl = projects.map(x => x.id === id ? { ...x, name: n } : x); localStorage.setItem('projects', JSON.stringify(nl)); setProjects(nl); const d = localStorage.getItem(`project_${id}`); if (d) { try { const pd = JSON.parse(d); pd.name = n; localStorage.setItem(`project_${id}`, JSON.stringify(pd)); } catch {} } };
 
   const openAddTabPopup = () => { if (showAddTabPopup) { setShowAddTabPopup(false); return; } if (addTabBtnRef.current) { const r = addTabBtnRef.current.getBoundingClientRect(); const pw = 280, pd = 8; let l = r.left; if (l + pw > window.innerWidth - pd) l = window.innerWidth - pw - pd; if (l < pd) l = pd; setAddTabPopupPos({ left: l, top: r.bottom + 4 }); } setShowAddTabPopup(true); };
@@ -955,30 +1056,27 @@ function App() {
     return (
       <div style={{ position: 'absolute', top: '10px', right: '10px', width: '260px', maxHeight: '70%', background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.2)', zIndex: 25, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9fafb' }}>
-          <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 'bold' }}>☰ Layers ({elements.length})</h3>
-          <button onClick={() => setShowLayers(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>✕</button>
+          <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Icon name="layers" size={14} /> Lớp ({elements.length})
+          </h3>
+          <button onClick={() => setShowLayers(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center', color: '#6b7280' }}>
+            <Icon name="x" size={16} />
+          </button>
         </div>
         <div style={{ overflowY: 'auto', flex: 1 }}>
-          {elements.length === 0 && <div style={{ padding: '20px', fontSize: '12px', color: '#9ca3af', textAlign: 'center' }}>Chưa có layer</div>}
+          {elements.length === 0 && <div style={{ padding: '20px', fontSize: '12px', color: '#9ca3af', textAlign: 'center' }}>Chưa có lớp nào</div>}
           {[...elements].reverse().map(el => {
             const isSel = selectedIds.includes(el.id);
-            let icon = '📦', name = el.type;
-            if (el.type === 'text') { icon = 'T'; name = el.text?.slice(0, 20) || 'Text'; }
-            else if (el.type === 'image') { icon = '🖼️'; name = 'Ảnh'; }
-            else if (el.type === 'rect') { icon = '▭'; name = 'Chữ nhật'; }
-            else if (el.type === 'circle') { icon = '●'; name = 'Tròn'; }
-            else if (el.type === 'polygon') { icon = '⬟'; name = `${el.sides || 5} giác`; }
-            else if (el.type === 'star') { icon = '★'; name = `${el.numPoints || 5} cánh`; }
-            else if (el.type === 'arrow') { icon = '→'; name = 'Mũi tên'; }
-            else if (el.type === 'path') { icon = '〰️'; name = 'Path'; }
-            else if (el.type === 'icon') { icon = '⚡'; name = 'Icon'; }
-            else if (el.type === 'brush') { icon = '✏️'; name = 'Bút vẽ'; }
-            else if (el.type === 'bentShape') { icon = '🔀'; name = 'Bent'; }
+            const isHidden = el.visible === false;
             return (
               <div key={el.id} onClick={() => setSelectedIds([el.id])} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', cursor: 'pointer', fontSize: '12px', background: isSel ? '#dbeafe' : 'transparent', borderBottom: '1px solid #f3f4f6' }}>
-                <span style={{ fontSize: '14px', flexShrink: 0 }}>{icon}</span>
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isSel ? 'bold' : 'normal' }}>{name}</span>
-                <button onClick={(e) => { e.stopPropagation(); updateElement(el.id, { visible: el.visible === false ? true : false }); }} title={el.visible === false ? 'Hiện' : 'Ẩn'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', opacity: el.visible === false ? 0.3 : 1 }}>{el.visible === false ? '🙈' : '👁️'}</button>
+                <Icon name={getLayerIconName(el)} size={14} style={{ color: isSel ? '#1d4ed8' : '#6b7280' }} />
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isSel ? 'bold' : 'normal', color: isHidden ? '#9ca3af' : '#1f2937' }}>{getLayerName(el)}</span>
+                <button onClick={(e) => { e.stopPropagation(); updateElement(el.id, { visible: isHidden ? true : false }); }}
+                  title={isHidden ? 'Hiện lớp' : 'Ẩn lớp'}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center', color: isHidden ? '#d1d5db' : '#6b7280' }}>
+                  <Icon name={isHidden ? 'eyeOff' : 'eye'} size={14} />
+                </button>
               </div>
             );
           })}
@@ -993,27 +1091,29 @@ function App() {
       return (
         <div style={{ padding: '15px', height: '100%', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <h2 style={{ fontSize: '16px', margin: 0 }}>Đã chọn {selectedIds.length}</h2>
-            <button onClick={() => setIsRightOpen(false)} style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '18px' }}>✕</button>
+            <h2 style={{ fontSize: '16px', margin: 0 }}>Đã chọn {selectedIds.length} đối tượng</h2>
+            <button onClick={() => setIsRightOpen(false)} style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}>
+              <Icon name="x" size={18} />
+            </button>
           </div>
-          <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '10px' }}>Kéo bất kỳ vật thể để di chuyển cụm</p>
+          <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '10px' }}>Kéo bất kỳ đối tượng để di chuyển cả nhóm</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '5px', marginBottom: '15px' }}>
-            <button onClick={() => alignSelected('left')} style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>⇤ Trái</button>
-            <button onClick={() => alignSelected('center-h')} style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>↔ Giữa</button>
-            <button onClick={() => alignSelected('right')} style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>Phải ⇥</button>
-            <button onClick={() => alignSelected('top')} style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>⇡ Trên</button>
-            <button onClick={() => alignSelected('center-v')} style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>↕ Giữa</button>
-            <button onClick={() => alignSelected('bottom')} style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>⇣ Dưới</button>
+            <button onClick={() => alignSelected('left')} title="Căn trái" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}><Icon name="alignLeft" size={16} /></button>
+            <button onClick={() => alignSelected('center-h')} title="Căn giữa ngang" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}><Icon name="alignCenterH" size={16} /></button>
+            <button onClick={() => alignSelected('right')} title="Căn phải" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}><Icon name="alignRight" size={16} /></button>
+            <button onClick={() => alignSelected('top')} title="Căn trên" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}><Icon name="alignTop" size={16} /></button>
+            <button onClick={() => alignSelected('center-v')} title="Căn giữa dọc" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}><Icon name="alignCenterV" size={16} /></button>
+            <button onClick={() => alignSelected('bottom')} title="Căn dưới" style={{ padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', justifyContent: 'center' }}><Icon name="alignBottom" size={16} /></button>
           </div>
           <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
-            <button onClick={() => centerSelected()} style={{ flex: 1, padding: '8px', background: '#bfdbfe', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Căn Giữa</button>
-            <button onClick={duplicateSelected} style={{ flex: 1, padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Nhân bản</button>
+            <button onClick={() => centerSelected()} style={{ flex: 1, padding: '8px', background: '#bfdbfe', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>Căn giữa canvas</button>
+            <button onClick={duplicateSelected} style={{ flex: 1, padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}><Icon name="copy" size={14} /> Nhân bản</button>
           </div>
           <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
-            <button onClick={() => moveLayer('up')} style={{ flex: 1, padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Lên trên</button>
-            <button onClick={() => moveLayer('down')} style={{ flex: 1, padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Xuống dưới</button>
+            <button onClick={() => moveLayer('up')} style={{ flex: 1, padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}><Icon name="up" size={14} /> Lên trên</button>
+            <button onClick={() => moveLayer('down')} style={{ flex: 1, padding: '8px', background: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}><Icon name="down" size={14} /> Xuống dưới</button>
           </div>
-          <button onClick={deleteSelected} style={{ marginTop: 'auto', padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Xoá {selectedIds.length} vật thể</button>
+          <button onClick={deleteSelected} style={{ marginTop: 'auto', padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Xóa {selectedIds.length} đối tượng</button>
         </div>
       );
     }
@@ -1023,7 +1123,9 @@ function App() {
       <div style={{ padding: '15px', height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
           <h2 style={{ fontSize: '16px', margin: 0 }}>Thuộc tính</h2>
-          <button onClick={() => setIsRightOpen(false)} style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '18px' }}>✕</button>
+          <button onClick={() => setIsRightOpen(false)} style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}>
+            <Icon name="x" size={18} />
+          </button>
         </div>
         <div style={{ display: 'flex', borderBottom: '1px solid #ddd', marginBottom: '15px' }}>
           {['basic', 'effects', 'colors'].map(t => (
@@ -1035,27 +1137,27 @@ function App() {
             <div>
               <div style={{ display: 'flex', gap: '5px', marginBottom: '15px', flexWrap: 'wrap' }}>
                 <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px', padding: '8px 0' }} onClick={() => moveLayer('up')}>Lên trên</button>
-                <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px', padding: '8px 0' }} onClick={() => moveLayer('down')}>Xuống</button>
-                <button className="btn" style={{ flex: 1, background: '#bfdbfe', fontSize: '12px', fontWeight: 'bold', padding: '8px 0' }} onClick={centerSelected}>Giữa</button>
+                <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px', padding: '8px 0' }} onClick={() => moveLayer('down')}>Xuống dưới</button>
+                <button className="btn" style={{ flex: 1, background: '#bfdbfe', fontSize: '12px', fontWeight: 'bold', padding: '8px 0' }} onClick={centerSelected}>Căn giữa</button>
                 <button className="btn" style={{ flex: 1, background: '#e5e7eb', fontSize: '12px', padding: '8px 0' }} onClick={duplicateSelected}>Nhân bản</button>
               </div>
 
               {selectedEl.type === 'text' && (
                 <div style={{ marginBottom: '15px' }}>
                   <div className="input-group" style={{ marginBottom: '10px' }}>
-                    <label style={{ fontSize: '13px' }}>Nội dung:</label>
+                    <label style={{ fontSize: '13px' }}>Nội dung chữ:</label>
                     <input type="text" value={selectedEl.text} onChange={(e) => { const v = e.target.value; setElements(elements.map(el => el.id === selectedId ? { ...el, text: v } : el)); }} onBlur={() => saveToHistory(elements)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }} />
                   </div>
                   <div className="input-group" style={{ marginBottom: '10px' }}>
-                    <label style={{ fontSize: '13px' }}>Font:</label>
+                    <label style={{ fontSize: '13px' }}>Font chữ:</label>
                     <select value={selectedEl.fontFamily} onChange={(e) => updateElement(selectedId, { fontFamily: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}>
                       <option value="Montserrat">Montserrat</option><option value="Roboto">Roboto</option><option value="Anton">Anton</option><option value="Bebas Neue">Bebas Neue</option><option value="Dancing Script">Dancing Script</option>
                     </select>
                   </div>
                   <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
-                    <button className="btn" style={{ flex: 1, fontWeight: 'bold', background: selectedEl.fontStyle?.includes('bold') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'bold') })}>B</button>
-                    <button className="btn" style={{ flex: 1, fontStyle: 'italic', background: selectedEl.fontStyle?.includes('italic') ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'italic') })}>I</button>
-                    <button className="btn" style={{ flex: 1, textDecoration: 'underline', background: selectedEl.textDecoration === 'underline' ? '#bfdbfe' : '#fff', border: '1px solid #ccc' }} onClick={() => updateElement(selectedId, { textDecoration: selectedEl.textDecoration === 'underline' ? '' : 'underline' })}>U</button>
+                    <button className="btn" style={{ flex: 1, background: selectedEl.fontStyle?.includes('bold') ? '#bfdbfe' : '#fff', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', padding: '8px' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'bold') })} title="In đậm"><Icon name="bold" size={16} /></button>
+                    <button className="btn" style={{ flex: 1, background: selectedEl.fontStyle?.includes('italic') ? '#bfdbfe' : '#fff', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', padding: '8px' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'italic') })} title="In nghiêng"><Icon name="italic" size={16} /></button>
+                    <button className="btn" style={{ flex: 1, background: selectedEl.textDecoration === 'underline' ? '#bfdbfe' : '#fff', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', padding: '8px' }} onClick={() => updateElement(selectedId, { textDecoration: selectedEl.textDecoration === 'underline' ? '' : 'underline' })} title="Gạch chân"><Icon name="underline" size={16} /></button>
                   </div>
                   <div style={{ background: '#dbeafe', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
@@ -1072,43 +1174,55 @@ function App() {
                     </>)}
                   </div>
                   <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '6px' }}>
-                    <h4 style={{ fontWeight: 'bold', color: '#92400e', marginBottom: '10px', fontSize: '14px' }}>🔀 Bẻ cong chữ</h4>
+                    <h4 style={{ fontWeight: 'bold', color: '#92400e', marginBottom: '10px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><Icon name="bend" size={16} /> Bẻ cong chữ</h4>
                     <label style={{ fontSize: '13px' }}>Độ cong: {selectedEl.bendAmount || 0}%</label>
                     <input type="range" min="-100" max="100" value={selectedEl.bendAmount || 0} onChange={(e) => updateElement(selectedId, { bendAmount: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '8px' }} />
-                    <button className="btn" style={{ width: '100%', background: '#fde68a', fontSize: '12px', padding: '6px' }} onClick={() => updateElement(selectedId, { bendAmount: 0 })}>⟲ Reset</button>
+                    <button className="btn" style={{ width: '100%', background: '#fde68a', fontSize: '12px', padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} onClick={() => updateElement(selectedId, { bendAmount: 0 })}><Icon name="rotateCcw" size={12} /> Đặt lại</button>
                   </div>
                 </div>
               )}
 
               {SHAPE_BENDABLE.includes(selectedEl.type) && (
                 <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
-                  <h4 style={{ fontWeight: 'bold', color: '#92400e', marginBottom: '10px', fontSize: '14px' }}>🔀 Bẻ cong shape</h4>
-                  {!bendMode && selectedEl.type !== 'bentShape' && <button className="btn" style={{ width: '100%', background: '#fbbf24', fontWeight: 'bold', padding: '10px' }} onClick={convertToBentShape}>✏️ Bật bẻ cong</button>}
-                  {!bendMode && selectedEl.type === 'bentShape' && <button className="btn" style={{ width: '100%', background: '#fbbf24', fontWeight: 'bold', padding: '10px' }} onClick={() => setBendMode(true)}>✏️ Chỉnh sửa</button>}
+                  <h4 style={{ fontWeight: 'bold', color: '#92400e', marginBottom: '10px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><Icon name="bend" size={16} /> Bẻ cong hình</h4>
+                  {!bendMode && selectedEl.type !== 'bentShape' && (
+                    <button className="btn" style={{ width: '100%', background: '#fbbf24', fontWeight: 'bold', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={convertToBentShape}>
+                      <Icon name="edit" size={14} /> Bật chế độ bẻ cong
+                    </button>
+                  )}
+                  {!bendMode && selectedEl.type === 'bentShape' && (
+                    <button className="btn" style={{ width: '100%', background: '#fbbf24', fontWeight: 'bold', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => setBendMode(true)}>
+                      <Icon name="edit" size={14} /> Chỉnh sửa độ cong
+                    </button>
+                  )}
                   {bendMode && (<>
-                    <p style={{ fontSize: '12px', color: '#92400e', marginBottom: '8px', lineHeight: 1.4 }}>💡 Kéo điểm vàng · Double-click reset</p>
-                    <button className="btn" style={{ width: '100%', background: '#10b981', color: 'white', fontWeight: 'bold', marginBottom: '6px', padding: '10px' }} onClick={() => setBendMode(false)}>✓ Xong</button>
-                    <button className="btn" style={{ width: '100%', background: '#fee2e2', color: '#ef4444', fontSize: '12px', padding: '6px' }} onClick={() => { const nb = (selectedEl.bends || []).map(() => ({ x: 0, y: 0 })); saveToHistory(elements.map(it => it.id === selectedId ? { ...it, bends: nb } : it)); }}>⟲ Reset cạnh</button>
+                    <p style={{ fontSize: '12px', color: '#92400e', marginBottom: '8px', lineHeight: 1.4 }}>Kéo các điểm điều khiển để uốn cong hình. Nhấp đúp để đặt lại cạnh.</p>
+                    <button className="btn" style={{ width: '100%', background: '#10b981', color: 'white', fontWeight: 'bold', marginBottom: '6px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => setBendMode(false)}>
+                      <Icon name="check" size={14} /> Hoàn tất
+                    </button>
+                    <button className="btn" style={{ width: '100%', background: '#fee2e2', color: '#ef4444', fontSize: '12px', padding: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} onClick={() => { const nb = (selectedEl.bends || []).map(() => ({ x: 0, y: 0 })); saveToHistory(elements.map(it => it.id === selectedId ? { ...it, bends: nb } : it)); }}>
+                      <Icon name="rotateCcw" size={12} /> Đặt lại toàn bộ
+                    </button>
                   </>)}
                 </div>
               )}
 
               {['rect', 'circle', 'polygon', 'star', 'bentShape'].includes(selectedEl.type) && (
                 <div style={{ background: '#e0e7ff', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
-                  <h4 style={{ fontWeight: 'bold', color: '#3730a3', marginBottom: '10px', fontSize: '14px' }}>Tùy chỉnh</h4>
+                  <h4 style={{ fontWeight: 'bold', color: '#3730a3', marginBottom: '10px', fontSize: '14px' }}>Tùy chỉnh hình dạng</h4>
                   {selectedEl.type === 'rect' && <><label style={{ fontSize: '13px' }}>Bo góc: {selectedEl.cornerRadius || 0}px</label><input type="range" min="0" max="100" value={selectedEl.cornerRadius || 0} onChange={(e) => updateElement(selectedId, { cornerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>}
                   {['circle', 'polygon', 'bentShape'].includes(selectedEl.type) && ['circle', 'polygon'].includes(getBaseType(selectedEl)) && <><label style={{ fontSize: '13px' }}>Bán kính: {Math.round(selectedEl.radius)}px</label><input type="range" min="10" max="300" value={selectedEl.radius || 80} onChange={(e) => updateElement(selectedId, { radius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>}
                   {getBaseType(selectedEl) === 'polygon' && <><label style={{ fontSize: '13px' }}>Số cạnh: {selectedEl.sides}</label><input type="range" min="3" max="20" value={selectedEl.sides || 3} onChange={(e) => { const ns = parseInt(e.target.value); const nb = Array.from({ length: ns }, (_, i) => (selectedEl.bends && selectedEl.bends[i]) || { x: 0, y: 0 }); updateElement(selectedId, { sides: ns, bends: selectedEl.type === 'bentShape' ? nb : selectedEl.bends }); }} style={{ width: '100%', marginBottom: '10px' }} /></>}
                   {getBaseType(selectedEl) === 'star' && (<>
                     <label style={{ fontSize: '13px' }}>Số góc: {selectedEl.numPoints}</label><input type="range" min="3" max="20" value={selectedEl.numPoints || 5} onChange={(e) => { const n = parseInt(e.target.value); const nb = Array.from({ length: n * 2 }, (_, i) => (selectedEl.bends && selectedEl.bends[i]) || { x: 0, y: 0 }); updateElement(selectedId, { numPoints: n, bends: selectedEl.type === 'bentShape' ? nb : selectedEl.bends }); }} style={{ width: '100%', marginBottom: '10px' }} />
-                    <label style={{ fontSize: '13px' }}>Độ nhọn:</label><input type="range" min="10" max={selectedEl.outerRadius - 5} value={selectedEl.innerRadius || 40} onChange={(e) => updateElement(selectedId, { innerRadius: parseInt(e.target.value) })} style={{ width: '100%' }} />
+                    <label style={{ fontSize: '13px' }}>Độ sắc: {selectedEl.innerRadius || 40}px</label><input type="range" min="10" max={selectedEl.outerRadius - 5} value={selectedEl.innerRadius || 40} onChange={(e) => updateElement(selectedId, { innerRadius: parseInt(e.target.value) })} style={{ width: '100%' }} />
                   </>)}
                 </div>
               )}
 
               {['rect', 'circle', 'polygon', 'star', 'bentShape', 'arrow'].includes(selectedEl.type) && (
                 <div style={{ background: '#fce7f3', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
-                  <h4 style={{ fontWeight: 'bold', color: '#831843', marginBottom: '10px', fontSize: '14px' }}>〰️ Nét viền</h4>
+                  <h4 style={{ fontWeight: 'bold', color: '#831843', marginBottom: '10px', fontSize: '14px' }}>Kiểu nét viền</h4>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                     <input type="checkbox" checked={selectedEl.dashEnabled || false} onChange={(e) => updateElement(selectedId, { dashEnabled: e.target.checked })} />
                     <label style={{ fontWeight: 'bold', fontSize: '13px' }}>Nét đứt</label>
@@ -1130,28 +1244,32 @@ function App() {
                 </div>
               )}
 
-              {selectedEl.type === 'image' && <button className="btn" style={{ width: '100%', background: '#8b5cf6', color: 'white', marginTop: '15px', padding: '12px', fontWeight: 'bold' }} onClick={handleRemoveBg} disabled={isProcessing}>✨ Tách Nền AI</button>}
+              {selectedEl.type === 'image' && (
+                <button className="btn" style={{ width: '100%', background: '#8b5cf6', color: 'white', marginTop: '15px', padding: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={handleRemoveBg} disabled={isProcessing}>
+                  <Icon name="sparkles" size={16} /> Tách nền bằng AI
+                </button>
+              )}
             </div>
           )}
 
           {activeTab === 'effects' && (
             <div>
               <div style={{ marginBottom: '15px' }}>
-                <label style={{ fontSize: '13px' }}>Opacity: {Math.round((selectedEl.opacity ?? 1) * 100)}%</label>
+                <label style={{ fontSize: '13px' }}>Độ mờ: {Math.round((selectedEl.opacity ?? 1) * 100)}%</label>
                 <input type="range" min="0" max="1" step="0.05" value={selectedEl.opacity ?? 1} onChange={(e) => updateElement(selectedId, { opacity: parseFloat(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
               </div>
 
               <div style={{ marginBottom: '15px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Blend mode:</label>
+                <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Chế độ hòa trộn:</label>
                 <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginTop: '4px' }}>
                   <select value={selectedEl.blendMode || 'source-over'} onChange={(e) => updateElement(selectedId, { blendMode: e.target.value })}
                     style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}>
                     <option value="source-over">Bình thường</option>
-                    <option value="multiply">Multiply</option>
-                    <option value="screen">Screen</option>
-                    <option value="overlay">Overlay</option>
-                    <option value="darken">Darken</option>
-                    <option value="lighten">Lighten</option>
+                    <option value="multiply">Nhân (Multiply)</option>
+                    <option value="screen">Màn hình (Screen)</option>
+                    <option value="overlay">Chồng lớp (Overlay)</option>
+                    <option value="darken">Tối hơn (Darken)</option>
+                    <option value="lighten">Sáng hơn (Lighten)</option>
                     <option value="color-dodge">Color Dodge</option>
                     <option value="color-burn">Color Burn</option>
                     <option value="hard-light">Hard Light</option>
@@ -1160,16 +1278,16 @@ function App() {
                     <option value="exclusion">Exclusion</option>
                   </select>
                   <button onClick={() => setBgColor(isDarkColor(bgColor) ? '#ffffff' : '#1f2937')}
-                    title="Đổi nền sáng/tối để test blend mode"
-                    style={{ padding: '8px 10px', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer', fontSize: '14px' }}>
-                    {isDarkColor(bgColor) ? '☀️' : '🌙'}
+                    title="Đổi nền sáng/tối để kiểm tra"
+                    style={{ padding: '8px 10px', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    <Icon name={isDarkColor(bgColor) ? 'sun' : 'moon'} size={16} />
                   </button>
                 </div>
                 {selectedEl.blendMode && selectedEl.blendMode !== 'source-over' && (
                   <div style={{ marginTop: '8px', padding: '8px', background: '#fef3c7', borderRadius: '4px', border: '1px solid #fde047' }}>
-                    <p style={{ margin: 0, fontSize: '11px', color: '#92400e', lineHeight: 1.5 }}>
-                      ⚠️ Blend mode hòa trộn shape với <strong>nền và vật thể bên dưới</strong>. Nếu shape biến mất → đổi màu nền hoặc đổi vị trí.
-                      <br />💡 Bấm <strong>{isDarkColor(bgColor) ? '☀️' : '🌙'}</strong> để đổi nền test nhanh.
+                    <p style={{ margin: 0, fontSize: '11px', color: '#92400e', lineHeight: 1.5, display: 'flex', gap: '6px' }}>
+                      <Icon name="alert" size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
+                      <span>Chế độ hòa trộn kết hợp đối tượng với nền và các lớp bên dưới. Nếu đối tượng biến mất, hãy đổi màu nền hoặc vị trí.</span>
                     </p>
                   </div>
                 )}
@@ -1177,16 +1295,18 @@ function App() {
 
               {selectedEl.type === 'image' && (
                 <div style={{ background: '#dcfce7', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
-                  <h4 style={{ fontWeight: 'bold', color: '#14532d', marginBottom: '10px', fontSize: '14px' }}>🎨 Bộ lọc ảnh</h4>
+                  <h4 style={{ fontWeight: 'bold', color: '#14532d', marginBottom: '10px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><Icon name="sliders" size={16} /> Bộ lọc ảnh</h4>
                   <label style={{ fontSize: '12px' }}>Độ sáng: {selectedEl.brightness ?? 0}</label>
                   <input type="range" min="-1" max="1" step="0.05" value={selectedEl.brightness ?? 0} onChange={(e) => updateElement(selectedId, { brightness: parseFloat(e.target.value) })} style={{ width: '100%', marginBottom: '6px' }} />
-                  <label style={{ fontSize: '12px' }}>Tương phản: {selectedEl.contrast ?? 0}</label>
+                  <label style={{ fontSize: '12px' }}>Độ tương phản: {selectedEl.contrast ?? 0}</label>
                   <input type="range" min="-100" max="100" step="1" value={selectedEl.contrast ?? 0} onChange={(e) => updateElement(selectedId, { contrast: parseFloat(e.target.value) })} style={{ width: '100%', marginBottom: '6px' }} />
-                  <label style={{ fontSize: '12px' }}>Blur: {selectedEl.blurRadius ?? 0}px</label>
+                  <label style={{ fontSize: '12px' }}>Độ mờ: {selectedEl.blurRadius ?? 0}px</label>
                   <input type="range" min="0" max="30" step="1" value={selectedEl.blurRadius ?? 0} onChange={(e) => updateElement(selectedId, { blurRadius: parseFloat(e.target.value) })} style={{ width: '100%', marginBottom: '6px' }} />
-                  <label style={{ fontSize: '12px' }}>Bão hòa: {selectedEl.saturate ?? 1}</label>
+                  <label style={{ fontSize: '12px' }}>Độ bão hòa: {selectedEl.saturate ?? 1}</label>
                   <input type="range" min="0" max="3" step="0.1" value={selectedEl.saturate ?? 1} onChange={(e) => updateElement(selectedId, { saturate: parseFloat(e.target.value) })} style={{ width: '100%' }} />
-                  <button className="btn" style={{ width: '100%', background: '#e5e7eb', fontSize: '12px', padding: '6px', marginTop: '8px' }} onClick={() => updateElement(selectedId, { brightness: 0, contrast: 0, blurRadius: 0, saturate: 1 })}>⟲ Reset bộ lọc</button>
+                  <button className="btn" style={{ width: '100%', background: '#e5e7eb', fontSize: '12px', padding: '6px', marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }} onClick={() => updateElement(selectedId, { brightness: 0, contrast: 0, blurRadius: 0, saturate: 1 })}>
+                    <Icon name="rotateCcw" size={12} /> Đặt lại bộ lọc
+                  </button>
                 </div>
               )}
 
@@ -1197,14 +1317,14 @@ function App() {
               {selectedEl.shadowEnabled && (
                 <div style={{ paddingLeft: '10px', borderLeft: '2px solid #cbd5e1' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}>
-                    <label style={{ fontSize: '12px' }}>Màu:</label>
+                    <label style={{ fontSize: '12px' }}>Màu bóng:</label>
                     <input type="color" value={selectedEl.shadowColor || '#000000'} onChange={(e) => updateElement(selectedId, { shadowColor: e.target.value })} style={{ width: '30px', height: '25px' }} />
                   </div>
-                  <label style={{ fontSize: '12px' }}>Blur: {selectedEl.shadowBlur ?? 10}px</label>
+                  <label style={{ fontSize: '12px' }}>Độ mờ bóng: {selectedEl.shadowBlur ?? 10}px</label>
                   <input type="range" min="0" max="50" value={selectedEl.shadowBlur ?? 10} onChange={(e) => updateElement(selectedId, { shadowBlur: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '5px' }} />
-                  <label style={{ fontSize: '12px' }}>X: {selectedEl.shadowOffsetX ?? 5}px</label>
+                  <label style={{ fontSize: '12px' }}>Lệch ngang: {selectedEl.shadowOffsetX ?? 5}px</label>
                   <input type="range" min="-20" max="20" value={selectedEl.shadowOffsetX ?? 5} onChange={(e) => updateElement(selectedId, { shadowOffsetX: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '5px' }} />
-                  <label style={{ fontSize: '12px' }}>Y: {selectedEl.shadowOffsetY ?? 5}px</label>
+                  <label style={{ fontSize: '12px' }}>Lệch dọc: {selectedEl.shadowOffsetY ?? 5}px</label>
                   <input type="range" min="-20" max="20" value={selectedEl.shadowOffsetY ?? 5} onChange={(e) => updateElement(selectedId, { shadowOffsetY: parseInt(e.target.value) })} style={{ width: '100%' }} />
                 </div>
               )}
@@ -1215,19 +1335,19 @@ function App() {
             <div>
               {['text', 'rect', 'circle', 'polygon', 'star', 'path', 'icon', 'bentShape'].includes(selectedEl.type) && (
                 <div style={{ marginBottom: '15px' }}>
-                  <label style={{ fontSize: '13px' }}>{selectedEl.type === 'text' ? 'Màu chữ' : 'Màu nền'}:</label>
+                  <label style={{ fontSize: '13px' }}>{selectedEl.type === 'text' ? 'Màu chữ:' : 'Màu nền:'}</label>
                   <input type="color" value={selectedEl.fill === 'transparent' ? '#ffffff' : (selectedEl.fill || '#3b82f6')} onChange={(e) => updateElement(selectedId, { fill: e.target.value })} style={{ height: '30px', cursor: 'pointer', width: '100%', marginBottom: '10px' }} />
 
                   {isShapeWithFill && (
                     <div style={{ background: '#f3e8ff', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
                       <div style={{ display: 'flex', gap: '5px', marginBottom: '8px' }}>
                         <button onClick={() => updateElement(selectedId, { fillType: 'solid' })} style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid #ccc', cursor: 'pointer', fontSize: '12px', background: (selectedEl.fillType !== 'gradient') ? '#bfdbfe' : '#fff', fontWeight: 'bold' }}>Đơn sắc</button>
-                        <button onClick={() => updateElement(selectedId, { fillType: 'gradient' })} style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid #ccc', cursor: 'pointer', fontSize: '12px', background: selectedEl.fillType === 'gradient' ? '#bfdbfe' : '#fff', fontWeight: 'bold' }}>Gradient</button>
+                        <button onClick={() => updateElement(selectedId, { fillType: 'gradient' })} style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid #ccc', cursor: 'pointer', fontSize: '12px', background: selectedEl.fillType === 'gradient' ? '#bfdbfe' : '#fff', fontWeight: 'bold' }}>Chuyển sắc</button>
                       </div>
                       {selectedEl.fillType === 'gradient' && (<>
                         <div style={{ display: 'flex', gap: '5px', marginBottom: '6px' }}>
-                          <div style={{ flex: 1 }}><label style={{ fontSize: '11px' }}>Màu 1:</label><input type="color" value={selectedEl.gradientColor1 || '#3b82f6'} onChange={(e) => updateElement(selectedId, { gradientColor1: e.target.value })} style={{ width: '100%', height: '28px' }} /></div>
-                          <div style={{ flex: 1 }}><label style={{ fontSize: '11px' }}>Màu 2:</label><input type="color" value={selectedEl.gradientColor2 || '#8b5cf6'} onChange={(e) => updateElement(selectedId, { gradientColor2: e.target.value })} style={{ width: '100%', height: '28px' }} /></div>
+                          <div style={{ flex: 1 }}><label style={{ fontSize: '11px' }}>Màu đầu:</label><input type="color" value={selectedEl.gradientColor1 || '#3b82f6'} onChange={(e) => updateElement(selectedId, { gradientColor1: e.target.value })} style={{ width: '100%', height: '28px' }} /></div>
+                          <div style={{ flex: 1 }}><label style={{ fontSize: '11px' }}>Màu cuối:</label><input type="color" value={selectedEl.gradientColor2 || '#8b5cf6'} onChange={(e) => updateElement(selectedId, { gradientColor2: e.target.value })} style={{ width: '100%', height: '28px' }} /></div>
                         </div>
                         <label style={{ fontSize: '12px' }}>Góc: {selectedEl.gradientAngle || 0}°</label>
                         <input type="range" min="0" max="360" value={selectedEl.gradientAngle || 0} onChange={(e) => updateElement(selectedId, { gradientAngle: parseInt(e.target.value) })} style={{ width: '100%' }} />
@@ -1246,7 +1366,7 @@ function App() {
             </div>
           )}
         </div>
-        <button onClick={deleteSelected} style={{ marginTop: '10px', padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Xoá vật thể</button>
+        <button onClick={deleteSelected} style={{ marginTop: '10px', padding: '10px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Xóa đối tượng này</button>
       </div>
     );
   };
@@ -1257,21 +1377,23 @@ function App() {
         <div style={{ maxWidth: '960px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '40px' }}>
             <h1 style={{ color: '#1f2937', fontSize: '48px', marginBottom: '8px' }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h1>
-            <p style={{ color: '#6b7280', fontSize: '16px' }}>Chọn project để tiếp tục, hoặc tạo project mới</p>
+            <p style={{ color: '#6b7280', fontSize: '16px' }}>Chọn dự án để tiếp tục, hoặc tạo dự án mới</p>
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '36px' }}>
-            <button onClick={handleCreateProject} style={{ padding: '14px 32px', fontSize: '16px', fontWeight: 'bold', background: '#10b981', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(16,185,129,0.3)' }}>+ Tạo Project Mới</button>
+            <button onClick={handleCreateProject} style={{ padding: '14px 32px', fontSize: '16px', fontWeight: 'bold', background: '#10b981', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon name="plus" size={18} /> Tạo dự án mới
+            </button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '20px' }}>
-            {projects.length === 0 && <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#9ca3af', padding: '60px 20px' }}>Chưa có project. Bấm "Tạo Project Mới" ✨</div>}
+            {projects.length === 0 && <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#9ca3af', padding: '60px 20px' }}>Chưa có dự án nào. Bấm "Tạo dự án mới" để bắt đầu.</div>}
             {projects.map(p => (
               <div key={p.id} onClick={() => openProject(p.id)} style={{ background: 'white', borderRadius: '12px', padding: '20px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.05)', position: 'relative' }}>
-                <div style={{ fontSize: '30px', marginBottom: '10px' }}>📄</div>
+                <div style={{ marginBottom: '10px', color: '#8b5cf6' }}><Icon name="file" size={32} /></div>
                 <h3 style={{ margin: '0 0 6px', color: '#1f2937', fontSize: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</h3>
                 <p style={{ margin: 0, color: '#6b7280', fontSize: '12px' }}>{new Date(p.updatedAt).toLocaleDateString('vi-VN')}</p>
                 <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '4px' }}>
-                  <button onClick={e => { e.stopPropagation(); renameProject(p.id); }} style={{ background: '#dbeafe', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontSize: '13px' }}>✏️</button>
-                  <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }} style={{ background: '#fee2e2', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontSize: '13px' }}>🗑️</button>
+                  <button onClick={e => { e.stopPropagation(); renameProject(p.id); }} title="Đổi tên" style={{ background: '#dbeafe', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1d4ed8' }}><Icon name="edit" size={13} /></button>
+                  <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }} title="Xóa" style={{ background: '#fee2e2', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}><Icon name="trash" size={13} /></button>
                 </div>
               </div>
             ))}
@@ -1284,7 +1406,7 @@ function App() {
               <input autoFocus type="text" value={promptState.value} onChange={(e) => setPromptState({ ...promptState, value: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') handlePromptConfirm(); if (e.key === 'Escape') handlePromptCancel(); }} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', boxSizing: 'border-box' }} />
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button onClick={handlePromptCancel} style={{ padding: '8px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Hủy</button>
-                <button onClick={handlePromptConfirm} style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>OK</button>
+                <button onClick={handlePromptConfirm} style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Xác nhận</button>
               </div>
             </div>
           </div>
@@ -1295,7 +1417,7 @@ function App() {
               <h3 style={{ margin: '0 0 15px', fontSize: '15px', lineHeight: 1.5 }}>{confirmState.title}</h3>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button onClick={handleConfirmNo} style={{ padding: '8px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Hủy</button>
-                <button onClick={handleConfirmYes} style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>OK</button>
+                <button onClick={handleConfirmYes} style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Xác nhận</button>
               </div>
             </div>
           </div>
@@ -1306,8 +1428,18 @@ function App() {
 
   return (
     <div className="app-container" style={{ flexDirection: 'column' }} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-      {isDragging && <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(59, 130, 246, 0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', border: '10px dashed white', boxSizing: 'border-box' }}><h2 style={{ color: 'white', fontSize: '32px' }}>Thả file Ảnh hoặc .json!</h2></div>}
-      {isProcessing && <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white' }}><div style={{ border: '5px solid #f3f3f3', borderTop: '5px solid #8b5cf6', borderRadius: '50%', width: '60px', height: '60px', animation: 'spin 1s linear infinite' }}></div><h3 style={{ marginTop: '20px', fontSize: '22px' }}>{processingText}</h3></div>}
+      {isDragging && <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(59, 130, 246, 0.8)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', border: '10px dashed white', boxSizing: 'border-box' }}><h2 style={{ color: 'white', fontSize: '28px' }}>Thả tệp ảnh hoặc .json vào đây</h2></div>}
+
+      {isProcessing && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'white' }}>
+          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+          <div style={{ border: '4px solid rgba(243,243,243,0.3)', borderTop: '4px solid #8b5cf6', borderRadius: '50%', width: '56px', height: '56px', animation: 'spin 1s linear infinite' }}></div>
+          <h3 style={{ marginTop: '20px', fontSize: '18px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icon name="sparkles" size={20} /> {processingText}
+          </h3>
+          <p style={{ marginTop: '6px', fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>Vui lòng đợi trong giây lát</p>
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', background: '#d1d5db', padding: '6px 10px 0', overflowX: 'auto', flexShrink: 0, borderBottom: '1px solid #9ca3af', minHeight: '36px', WebkitOverflowScrolling: 'touch' }}>
         {openProjectIds.map(id => {
@@ -1316,22 +1448,26 @@ function App() {
           return (
             <div key={id} onClick={() => switchProject(id)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: isActive ? '#fff' : '#e5e7eb', color: '#1f2937', borderRadius: '6px 6px 0 0', cursor: 'pointer', fontSize: '12px', fontWeight: isActive ? 'bold' : 'normal', maxWidth: '180px', minWidth: '80px', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: isActive ? 'inset 0 2px 0 #3b82f6' : 'none' }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{proj.name}</span>
-              <button onClick={(e) => { e.stopPropagation(); closeProjectTab(id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '16px', padding: '0 2px', lineHeight: 1 }}>×</button>
+              <button onClick={(e) => { e.stopPropagation(); closeProjectTab(id); }} title="Đóng tab" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: '0 2px', display: 'flex', alignItems: 'center' }}><Icon name="x" size={14} /></button>
             </div>
           );
         })}
-        <button ref={addTabBtnRef} onClick={openAddTabPopup} style={{ padding: '5px 12px', background: showAddTabPopup ? '#3b82f6' : 'rgba(255,255,255,0.4)', color: showAddTabPopup ? '#fff' : '#374151', border: '1px solid #9ca3af', borderRadius: '4px 4px 0 0', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', marginLeft: '4px', lineHeight: 1, flexShrink: 0 }}>+</button>
+        <button ref={addTabBtnRef} onClick={openAddTabPopup} title="Thêm tab" style={{ padding: '5px 10px', background: showAddTabPopup ? '#3b82f6' : 'rgba(255,255,255,0.4)', color: showAddTabPopup ? '#fff' : '#374151', border: '1px solid #9ca3af', borderRadius: '4px 4px 0 0', cursor: 'pointer', marginLeft: '4px', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          <Icon name="plus" size={14} />
+        </button>
       </div>
 
       {showAddTabPopup && (<>
         <div onClick={() => setShowAddTabPopup(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
         <div style={{ position: 'fixed', top: addTabPopupPos.top, left: addTabPopupPos.left, background: 'white', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.2)', width: '280px', zIndex: 999, overflow: 'hidden' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}><div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase' }}>Thêm tab</div></div>
-          <button onClick={() => { setShowAddTabPopup(false); handleCreateProject(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '12px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', color: '#10b981', borderBottom: '1px solid #eee' }}><span style={{ fontSize: '18px' }}>✨</span>Tạo project mới</button>
-          <div style={{ padding: '8px 14px 4px', fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', borderBottom: '1px solid #f3f4f6' }}>Project có sẵn</div>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}><div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 'bold' }}>Thêm tab</div></div>
+          <button onClick={() => { setShowAddTabPopup(false); handleCreateProject(); }} style={{ ...MENU_ITEM, fontWeight: 'bold', color: '#10b981', borderBottom: '1px solid #eee' }}>
+            <Icon name="plus" size={16} /> Tạo dự án mới
+          </button>
+          <div style={{ padding: '8px 14px 4px', fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 'bold', borderBottom: '1px solid #f3f4f6' }}>Dự án có sẵn</div>
           <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-            {availableProjects.length === 0 ? <div style={{ padding: '14px', fontSize: '12px', color: '#9ca3af', textAlign: 'center' }}>Không còn</div> :
-              availableProjects.map(p => (<button key={p.id} onClick={() => { setShowAddTabPopup(false); openProject(p.id); }} style={{ display: 'block', width: '100%', padding: '10px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '13px', color: '#1f2937', borderBottom: '1px solid #f9fafb' }}><div style={{ fontWeight: '500' }}>{p.name}</div></button>))}
+            {availableProjects.length === 0 ? <div style={{ padding: '14px', fontSize: '12px', color: '#9ca3af', textAlign: 'center', fontStyle: 'italic' }}>Không có dự án khả dụng</div> :
+              availableProjects.map(p => (<button key={p.id} onClick={() => { setShowAddTabPopup(false); openProject(p.id); }} style={{ ...MENU_ITEM, borderBottom: '1px solid #f9fafb' }}><Icon name="file" size={14} /> {p.name}</button>))}
           </div>
         </div>
       </>)}
@@ -1339,24 +1475,37 @@ function App() {
       {showProjectMenu && (<>
         <div onClick={() => setShowProjectMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
         <div style={{ position: 'fixed', top: projectMenuPos.top, left: projectMenuPos.left, background: 'white', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.2)', minWidth: '230px', zIndex: 999, overflow: 'hidden' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}><div style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase' }}>Hiện tại</div><div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1f2937', marginTop: '2px' }}>{projects.find(p => p.id === currentProjectId)?.name || 'Untitled'}</div></div>
-          <button onClick={() => { setShowProjectMenu(false); handleExitProject(); }} style={MENU_ITEM}>🚪 Thoát project</button>
-          <button onClick={handleNewTabProject} style={MENU_ITEM}>🆕 New tab</button>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid #eee', background: '#f9fafb' }}>
+            <div style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 'bold' }}>Dự án hiện tại</div>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1f2937', marginTop: '2px' }}>{projects.find(p => p.id === currentProjectId)?.name || 'Chưa đặt tên'}</div>
+          </div>
+          <button onClick={() => { setShowProjectMenu(false); handleExitProject(); }} style={MENU_ITEM}><Icon name="logout" size={14} /> Thoát dự án</button>
+          <button onClick={handleNewTabProject} style={MENU_ITEM}><Icon name="plus" size={14} /> Dự án mới</button>
         </div>
       </>)}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'space-between', background: '#e5e7eb', padding: isMobile ? '8px 10px' : '10px 15px', borderBottom: '1px solid #d1d5db', gap: '10px', flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
         <div style={{ display: 'flex', gap: isMobile ? '8px' : '10px', alignItems: 'center', flexWrap: isMobile ? 'nowrap' : 'wrap', flexShrink: 0 }}>
-          <button ref={projectBtnRef} onClick={openProjectMenu} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: showProjectMenu ? '#3b82f6' : '#fff', color: showProjectMenu ? '#fff' : '#333', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>📁 Project</button>
-          <button onClick={() => setShowLayers(!showLayers)} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: showLayers ? '#3b82f6' : '#fff', color: showLayers ? '#fff' : '#333', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>☰ Layers</button>
+          <button ref={projectBtnRef} onClick={openProjectMenu} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: showProjectMenu ? '#3b82f6' : '#fff', color: showProjectMenu ? '#fff' : '#333', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Icon name="folder" size={14} /> Dự án
+          </button>
+          <button onClick={() => setShowLayers(!showLayers)} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: showLayers ? '#3b82f6' : '#fff', color: showLayers ? '#fff' : '#333', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Icon name="layers" size={14} /> Lớp
+          </button>
           <h2 style={{ fontSize: '18px', color: '#1f2937', margin: 0, fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0 }}><span style={{ color: '#8b5cf6' }}>Pixel</span>Craft</h2>
           <select value={`${canvasSize.width}x${canvasSize.height}`} onChange={(e) => { const [w, h] = e.target.value.split('x').map(Number); setCanvasSize({ width: w, height: h }); }} style={{ padding: '5px', borderRadius: '5px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}>
             <option value="800x600">800x600</option><option value="1080x1080">1080x1080</option><option value="1080x1920">1080x1920</option><option value="1920x1080">1920x1080</option><option value="1200x630">1200x630</option>
           </select>
           <div style={{ display: 'flex', gap: '5px', borderLeft: '1px solid #ccc', paddingLeft: '10px', flexShrink: 0 }}>
-            <button style={{ border: '1px solid #ccc', background: currentTool === 'brush' ? '#3b82f6' : '#fff', color: currentTool === 'brush' ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => { setCurrentTool('brush'); setIsRulerMode(false); }}>🖌️ Bút</button>
-            <button style={{ border: '1px solid #ccc', background: isRulerMode ? '#10b981' : '#fff', color: isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => { setIsRulerMode(true); setCurrentTool('select'); }}>📏 Thước</button>
-            <button style={{ border: '1px solid #ccc', background: currentTool === 'select' && !isRulerMode ? '#3b82f6' : '#fff', color: currentTool === 'select' && !isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => { setCurrentTool('select'); setIsRulerMode(false); }}>🖱️ Chọn</button>
+            <button style={{ border: '1px solid #ccc', background: currentTool === 'brush' ? '#3b82f6' : '#fff', color: currentTool === 'brush' ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }} onClick={() => { setCurrentTool('brush'); setIsRulerMode(false); }}>
+              <Icon name="brush" size={14} /> Bút
+            </button>
+            <button style={{ border: '1px solid #ccc', background: isRulerMode ? '#10b981' : '#fff', color: isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }} onClick={() => { setIsRulerMode(true); setCurrentTool('select'); }}>
+              <Icon name="ruler" size={14} /> Thước
+            </button>
+            <button style={{ border: '1px solid #ccc', background: currentTool === 'select' && !isRulerMode ? '#3b82f6' : '#fff', color: currentTool === 'select' && !isRulerMode ? '#fff' : '#333', padding: '5px 10px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }} onClick={() => { setCurrentTool('select'); setIsRulerMode(false); }}>
+              <Icon name="cursor" size={14} /> Chọn
+            </button>
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '1px solid #ccc', paddingLeft: '10px', flexWrap: 'nowrap', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><label style={{ fontSize: '12px', fontWeight: 'bold' }}>Màu:</label><input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} style={{ width: '25px', height: '25px', padding: 0, border: 'none' }} /></div>
@@ -1364,16 +1513,18 @@ function App() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0 }}>
-          <button onClick={saveProject} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333', whiteSpace: 'nowrap' }}>💾</button>
-          <button onClick={() => fileInputRef.current.click()} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', color: '#333', whiteSpace: 'nowrap' }}>📂</button>
+          <IconBtn icon="save" onClick={saveProject} title="Lưu dự án (.json)" />
+          <IconBtn icon="folderOpen" onClick={() => fileInputRef.current.click()} title="Mở dự án (.json)" />
           <input type="file" accept=".json" ref={fileInputRef} onChange={loadProject} style={{ display: 'none' }} />
-          <button onClick={handleUndo} disabled={historyStep <= 0} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: historyStep <= 0 ? 'not-allowed' : 'pointer' }}>↩</button>
-          <button onClick={handleRedo} disabled={historyStep >= history.length - 1} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: historyStep >= history.length - 1 ? 'not-allowed' : 'pointer' }}>↪</button>
-          <button onClick={handleReset} style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', border: '1px solid #ef4444', background: '#fee2e2', color: '#ef4444' }}>Xoá</button>
-          <select value={exportScale} onChange={(e) => setExportScale(parseInt(e.target.value))} style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold' }}>
+          <IconBtn icon="undo" onClick={handleUndo} disabled={historyStep <= 0} title="Hoàn tác (Ctrl+Z)" />
+          <IconBtn icon="redo" onClick={handleRedo} disabled={historyStep >= history.length - 1} title="Làm lại (Ctrl+Y)" />
+          <IconBtn icon="trash" variant="danger" onClick={handleReset} label="Xóa hết" />
+          <select value={exportScale} onChange={(e) => setExportScale(parseInt(e.target.value))} title="Độ phân giải xuất ảnh" style={{ padding: '5px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '12px', fontWeight: 'bold' }}>
             <option value={1}>1x</option><option value={2}>2x</option><option value={3}>3x</option><option value={4}>4x</option>
           </select>
-          <button className="btn btn-success" onClick={exportPng} style={{ padding: '5px 12px', fontSize: '12px', whiteSpace: 'nowrap' }}>Tải PNG</button>
+          <button className="btn btn-success" onClick={exportPng} style={{ padding: '5px 12px', fontSize: '12px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }}>
+            <Icon name="download" size={14} /> Xuất PNG
+          </button>
         </div>
       </div>
 
@@ -1381,16 +1532,18 @@ function App() {
         <div style={{ width: isLeftOpen ? (isMobile ? '100%' : '250px') : '0px', overflow: 'hidden', transition: 'width 0.3s', background: 'white', position: 'absolute', left: 0, zIndex: 100, height: '100%', borderRight: isLeftOpen ? '1px solid #ddd' : 'none' }}>
           <div style={{ padding: '15px', overflowY: 'auto', height: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <h2 style={{ fontSize: '16px', margin: 0 }}>Thư Viện</h2>
-              <button onClick={() => setIsLeftOpen(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+              <h2 style={{ fontSize: '16px', margin: 0 }}>Thư viện hình</h2>
+              <button onClick={() => setIsLeftOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'flex', color: '#6b7280' }}><Icon name="x" size={20} /></button>
             </div>
             <ShapeLibrary onAddBasicShape={addBasicShape} onAddIcon={addLucideIcon} onAddPathShape={addPathShape} />
-            <button className="btn" style={{ width: '100%', background: '#fef08a', color: '#854d0e', fontWeight: 'bold', marginBottom: '10px', border: '1px solid #fde047' }} onClick={() => setIsBuilderOpen(true)}>✨ Tạo Hình</button>
+            <button className="btn" style={{ width: '100%', background: '#fef08a', color: '#854d0e', fontWeight: 'bold', marginBottom: '10px', border: '1px solid #fde047', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => setIsBuilderOpen(true)}>
+              <Icon name="sparkles" size={14} /> Tạo hình tùy chỉnh
+            </button>
             {customShapes.length > 0 && (
               <div style={{ marginBottom: '15px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                   <h3 style={{ fontSize: '13px', margin: 0 }}>Hình của bạn:</h3>
-                  <button onClick={deleteAllCustomShapes} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline' }}>Xoá hết</button>
+                  <button onClick={deleteAllCustomShapes} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline' }}>Xóa tất cả</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '5px' }}>
                   {customShapes.map((shape, idx) => (
@@ -1403,20 +1556,20 @@ function App() {
                           {shape.type === 'star' && <polygon points={getSvgPoints(50, 50, 40, shape.numPoints, true, 20)} fill={shape.fill} stroke={shape.stroke} strokeWidth={shape.strokeWidth} />}
                         </svg>
                       </button>
-                      <button onClick={(e) => deleteCustomShape(e, shape.id)} style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '16px', height: '16px', fontSize: '9px', cursor: 'pointer' }}>✕</button>
+                      <button onClick={(e) => deleteCustomShape(e, shape.id)} style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '16px', height: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}><Icon name="x" size={10} /></button>
                     </div>
                   ))}
                 </div>
               </div>
             )}
             <div style={{ padding: '10px', border: '1px dashed #ccc', borderRadius: '6px', marginBottom: '15px' }}>
-              <label style={{ fontSize: '13px', fontWeight: '600', marginBottom: '5px', display: 'block' }}>Tải ảnh:</label>
+              <label style={{ fontSize: '13px', fontWeight: '600', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}><Icon name="image" size={14} /> Tải ảnh lên:</label>
               <input type="file" accept="image/*" onChange={handleImageUpload} style={{ fontSize: '12px', width: '100%' }} />
             </div>
             <div style={{ padding: '10px', border: '1px dashed #ccc', borderRadius: '6px', marginBottom: '15px' }}>
-              <label style={{ fontSize: '13px', fontWeight: '600', marginBottom: '5px', display: 'block' }}>🖼️ Nền Canvas:</label>
+              <label style={{ fontSize: '13px', fontWeight: '600', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}><Icon name="image" size={14} /> Ảnh nền canvas:</label>
               <input type="file" accept="image/*" onChange={handleBgImageUpload} style={{ fontSize: '12px', width: '100%', marginBottom: '5px' }} />
-              {bgImage && <button onClick={() => setBgImage(null)} style={{ width: '100%', padding: '4px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Xoá ảnh nền</button>}
+              {bgImage && <button onClick={() => setBgImage(null)} style={{ width: '100%', padding: '4px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>Xóa ảnh nền</button>}
             </div>
             <div className="input-group">
               <label>Màu nền:</label>
@@ -1425,13 +1578,15 @@ function App() {
           </div>
         </div>
 
-        {!isMobile && <button onClick={() => setIsLeftOpen(!isLeftOpen)} style={{ position: 'absolute', left: isLeftOpen ? '250px' : '0px', top: '50%', transform: 'translateY(-50%)', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderLeft: 'none', borderRadius: '0 5px 5px 0', padding: '10px 5px', cursor: 'pointer', transition: 'left 0.3s' }}>{isLeftOpen ? '◀' : '▶'}</button>}
+        {!isMobile && <button onClick={() => setIsLeftOpen(!isLeftOpen)} style={{ position: 'absolute', left: isLeftOpen ? '250px' : '0px', top: '50%', transform: 'translateY(-50%)', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderLeft: 'none', borderRadius: '0 5px 5px 0', padding: '10px 5px', cursor: 'pointer', transition: 'left 0.3s', display: 'flex', alignItems: 'center', color: '#6b7280' }}><Icon name={isLeftOpen ? 'chevronLeft' : 'chevronRight'} size={14} /></button>}
 
         <div ref={mainAreaRef} className="main-area" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#e5e7eb', touchAction: 'none', minHeight: 0 }}>
-          {!isLeftOpen && <button onClick={() => setIsLeftOpen(true)} style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>📚</button>}
-          {selectedIds.length > 0 && isMobile && !bendMode && <button onClick={() => setSelectedIds([])} style={{ position: 'absolute', top: '10px', right: '10px', background: 'white', border: '1px solid #d1d5db', borderRadius: '50%', width: '40px', height: '40px', zIndex: 20, fontSize: '16px', cursor: 'pointer' }}>✕</button>}
-          {isMobile && mobileDragHint && selectedIds.length > 0 && !bendMode && <div style={{ position: 'absolute', top: '60px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(31,41,55,0.9)', color: 'white', padding: '8px 14px', borderRadius: '20px', fontSize: '12px', zIndex: 21, pointerEvents: 'none', whiteSpace: 'nowrap' }}>👆 Chạm lần 2 để kéo</div>}
-          {bendMode && <div style={{ position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(251,191,36,0.95)', color: '#78350f', padding: '8px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', zIndex: 22, pointerEvents: 'none', whiteSpace: 'nowrap' }}>🔀 Kéo điểm vàng · Double-click reset</div>}
+          {!isLeftOpen && <button onClick={() => setIsLeftOpen(true)} style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#6b7280' }}><Icon name="book" size={18} /></button>}
+          {selectedIds.length > 0 && isMobile && !bendMode && <button onClick={() => setSelectedIds([])} title="Bỏ chọn" style={{ position: 'absolute', top: '10px', right: '10px', background: 'white', border: '1px solid #d1d5db', borderRadius: '50%', width: '40px', height: '40px', zIndex: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}><Icon name="x" size={18} /></button>}
+          {isMobile && mobileDragHint && selectedIds.length > 0 && !bendMode && <div style={{ position: 'absolute', top: '60px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(31,41,55,0.9)', color: 'white', padding: '8px 14px', borderRadius: '20px', fontSize: '12px', zIndex: 21, pointerEvents: 'none', whiteSpace: 'nowrap' }}>Chạm lần nữa để di chuyển</div>}
+          {bendMode && <div style={{ position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(251,191,36,0.95)', color: '#78350f', padding: '8px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', zIndex: 22, pointerEvents: 'none', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Icon name="bend" size={14} /> Kéo điểm điều khiển. Nhấp đúp để đặt lại.
+          </div>}
 
           <Stage width={mainAreaSize.width} height={mainAreaSize.height}
             onWheel={handleWheel} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
@@ -1466,19 +1621,19 @@ function App() {
 
           {zoomPopupPos.y !== null && (
             <div onMouseDown={handleZoomPopupDragStart} onTouchStart={handleZoomPopupDragStart}
-              style={{ position: 'absolute', left: zoomPopupPos.x, top: zoomPopupPos.y, background: 'white', padding: '6px 8px', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', gap: '4px', alignItems: 'center', zIndex: 20, userSelect: 'none', cursor: isDraggingZoom ? 'grabbing' : 'grab', touchAction: 'none' }}>
-              <button onClick={() => setZoomLevel(Math.round(stageScale * 100) - 10)} style={{ width: '28px', height: '28px', border: 'none', background: '#f3f4f6', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>−</button>
+              style={{ position: 'absolute', left: zoomPopupPos.x, top: zoomPopupPos.y, background: 'white', padding: '4px 6px', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', gap: '4px', alignItems: 'center', zIndex: 20, userSelect: 'none', cursor: isDraggingZoom ? 'grabbing' : 'grab', touchAction: 'none' }}>
+              <button onClick={() => setZoomLevel(Math.round(stageScale * 100) - 10)} style={{ width: '28px', height: '28px', border: 'none', background: '#f3f4f6', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1f2937' }}><Icon name="minus" size={14} /></button>
               {isEditingZoom ? <input autoFocus type="number" value={zoomInputValue} onChange={(e) => setZoomInputValue(e.target.value)} onBlur={commitZoom} onKeyDown={(e) => { if (e.key === 'Enter') commitZoom(); if (e.key === 'Escape') setIsEditingZoom(false); }} style={{ width: '58px', padding: '4px 2px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', border: '2px solid #3b82f6', borderRadius: '6px', outline: 'none' }} /> :
                 <div onClick={() => { setZoomInputValue(Math.round(stageScale * 100).toString()); setIsEditingZoom(true); }} style={{ minWidth: '48px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold', color: '#1f2937', padding: '4px 6px', borderRadius: '6px', cursor: 'text', background: '#f9fafb', border: '1px solid #e5e7eb' }}>{Math.round(stageScale * 100)}%</div>}
-              <button onClick={() => setZoomLevel(Math.round(stageScale * 100) + 10)} style={{ width: '28px', height: '28px', border: 'none', background: '#f3f4f6', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>+</button>
-              <button onClick={() => { setStageScale(1); userHasMovedCanvas.current = false; setStagePos({ x: mainAreaSize.width / 2 - canvasSize.width / 2, y: mainAreaSize.height / 2 - canvasSize.height / 2 }); }} style={{ width: '28px', height: '28px', border: 'none', background: '#e5e7eb', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>⤾</button>
+              <button onClick={() => setZoomLevel(Math.round(stageScale * 100) + 10)} style={{ width: '28px', height: '28px', border: 'none', background: '#f3f4f6', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1f2937' }}><Icon name="plus" size={14} /></button>
+              <button onClick={() => { setStageScale(1); userHasMovedCanvas.current = false; setStagePos({ x: mainAreaSize.width / 2 - canvasSize.width / 2, y: mainAreaSize.height / 2 - canvasSize.height / 2 }); }} title="Đặt lại 100%" style={{ width: '28px', height: '28px', border: 'none', background: '#e5e7eb', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1f2937' }}><Icon name="refresh" size={14} /></button>
             </div>
           )}
         </div>
 
         {selectedIds.length > 0 && currentTool === 'select' && !isRulerMode && !bendMode && (
-          <button onClick={() => setIsRightOpen(!isRightOpen)} style={{ position: 'absolute', right: isMobile ? '20px' : (isRightOpen ? '300px' : '0px'), bottom: isMobile ? (isRightOpen ? 'calc(40vh + 20px)' : '20px') : 'auto', top: isMobile ? 'auto' : '50%', transform: isMobile ? 'none' : 'translateY(-50%)', zIndex: 101, background: '#fff', border: '1px solid #ccc', borderRadius: isMobile ? '50%' : '5px 0 0 5px', width: isMobile ? '50px' : 'auto', height: isMobile ? '50px' : 'auto', padding: isMobile ? '0' : '10px 5px', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? '24px' : '20px' }}>
-            {isRightOpen ? (isMobile ? '✕' : '▶') : '⚙️'}
+          <button onClick={() => setIsRightOpen(!isRightOpen)} style={{ position: 'absolute', right: isMobile ? '20px' : (isRightOpen ? '300px' : '0px'), bottom: isMobile ? (isRightOpen ? 'calc(40vh + 20px)' : '20px') : 'auto', top: isMobile ? 'auto' : '50%', transform: isMobile ? 'none' : 'translateY(-50%)', zIndex: 101, background: '#fff', border: '1px solid #ccc', borderRadius: isMobile ? '50%' : '5px 0 0 5px', width: isMobile ? '50px' : 'auto', height: isMobile ? '50px' : 'auto', padding: isMobile ? '0' : '10px 5px', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1f2937' }}>
+            <Icon name={isRightOpen ? (isMobile ? 'x' : 'chevronRight') : 'settings'} size={isMobile ? 20 : 18} />
           </button>
         )}
 
@@ -1494,7 +1649,7 @@ function App() {
           <input autoFocus type="text" value={promptState.value} onChange={(e) => setPromptState({ ...promptState, value: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') handlePromptConfirm(); if (e.key === 'Escape') handlePromptCancel(); }} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '14px', marginBottom: '15px', boxSizing: 'border-box' }} />
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
             <button onClick={handlePromptCancel} style={{ padding: '8px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Hủy</button>
-            <button onClick={handlePromptConfirm} style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>OK</button>
+            <button onClick={handlePromptConfirm} style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Xác nhận</button>
           </div>
         </div>
       </div>)}
@@ -1504,7 +1659,7 @@ function App() {
           <h3 style={{ margin: '0 0 15px', fontSize: '15px', lineHeight: 1.5 }}>{confirmState.title}</h3>
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
             <button onClick={handleConfirmNo} style={{ padding: '8px 16px', background: '#e5e7eb', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Hủy</button>
-            <button onClick={handleConfirmYes} style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>OK</button>
+            <button onClick={handleConfirmYes} style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>Xác nhận</button>
           </div>
         </div>
       </div>)}
@@ -1512,33 +1667,33 @@ function App() {
       {isBuilderOpen && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <div style={{ background: 'white', padding: '20px', borderRadius: '10px', width: '90%', maxWidth: '350px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ marginBottom: '15px', textAlign: 'center' }}>Tạo Hình</h3>
+            <h3 style={{ marginBottom: '15px', textAlign: 'center' }}>Tạo hình tùy chỉnh</h3>
             <div className="input-group" style={{ marginBottom: '10px' }}>
-              <label>Loại:</label>
+              <label>Loại hình:</label>
               <select value={draftShape.type} onChange={(e) => setDraftShape({ ...draftShape, type: e.target.value })} style={{ padding: '8px', width: '100%', borderRadius: '5px', border: '1px solid #ddd' }}>
-                <option value="rect">Chữ Nhật</option><option value="circle">Tròn</option><option value="polygon">Đa Giác</option><option value="star">Sao</option>
+                <option value="rect">Chữ nhật</option><option value="circle">Hình tròn</option><option value="polygon">Đa giác</option><option value="star">Ngôi sao</option>
               </select>
             </div>
             {draftShape.type === 'rect' && (<>
               <label>Bo góc: {draftShape.cornerRadius}px</label><input type="range" min="0" max="100" value={draftShape.cornerRadius} onChange={(e) => setDraftShape({ ...draftShape, cornerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
-              <label>Rộng: {draftShape.width}px</label><input type="range" min="20" max="400" value={draftShape.width} onChange={(e) => setDraftShape({ ...draftShape, width: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
-              <label>Cao: {draftShape.height}px</label><input type="range" min="20" max="400" value={draftShape.height} onChange={(e) => setDraftShape({ ...draftShape, height: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+              <label>Chiều rộng: {draftShape.width}px</label><input type="range" min="20" max="400" value={draftShape.width} onChange={(e) => setDraftShape({ ...draftShape, width: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+              <label>Chiều cao: {draftShape.height}px</label><input type="range" min="20" max="400" value={draftShape.height} onChange={(e) => setDraftShape({ ...draftShape, height: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
             </>)}
             {(draftShape.type === 'circle' || draftShape.type === 'polygon') && <><label>Bán kính: {draftShape.radius}px</label><input type="range" min="10" max="200" value={draftShape.radius} onChange={(e) => setDraftShape({ ...draftShape, radius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>}
             {draftShape.type === 'polygon' && <><label>Số cạnh: {draftShape.sides}</label><input type="range" min="3" max="20" value={draftShape.sides} onChange={(e) => setDraftShape({ ...draftShape, sides: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} /></>}
             {draftShape.type === 'star' && (<>
               <label>Số cánh: {draftShape.numPoints}</label><input type="range" min="3" max="20" value={draftShape.numPoints} onChange={(e) => setDraftShape({ ...draftShape, numPoints: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
-              <label>BK ngoài: {draftShape.outerRadius}px</label><input type="range" min="20" max="200" value={draftShape.outerRadius} onChange={(e) => setDraftShape({ ...draftShape, outerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
-              <label>BK trong: {draftShape.innerRadius}px</label><input type="range" min="5" max={draftShape.outerRadius - 5} value={draftShape.innerRadius} onChange={(e) => setDraftShape({ ...draftShape, innerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+              <label>Bán kính ngoài: {draftShape.outerRadius}px</label><input type="range" min="20" max="200" value={draftShape.outerRadius} onChange={(e) => setDraftShape({ ...draftShape, outerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
+              <label>Bán kính trong: {draftShape.innerRadius}px</label><input type="range" min="5" max={draftShape.outerRadius - 5} value={draftShape.innerRadius} onChange={(e) => setDraftShape({ ...draftShape, innerRadius: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '10px' }} />
             </>)}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-              <div style={{ flex: 1 }}><label>Nền:</label><input type="color" value={draftShape.fill} onChange={(e) => setDraftShape({ ...draftShape, fill: e.target.value })} style={{ width: '100%', height: '30px' }} /></div>
-              <div style={{ flex: 1 }}><label>Viền:</label><input type="color" value={draftShape.stroke} onChange={(e) => setDraftShape({ ...draftShape, stroke: e.target.value })} style={{ width: '100%', height: '30px' }} /></div>
+              <div style={{ flex: 1 }}><label>Màu nền:</label><input type="color" value={draftShape.fill} onChange={(e) => setDraftShape({ ...draftShape, fill: e.target.value })} style={{ width: '100%', height: '30px' }} /></div>
+              <div style={{ flex: 1 }}><label>Màu viền:</label><input type="color" value={draftShape.stroke} onChange={(e) => setDraftShape({ ...draftShape, stroke: e.target.value })} style={{ width: '100%', height: '30px' }} /></div>
             </div>
             <label>Độ dày viền: {draftShape.strokeWidth}px</label><input type="range" min="0" max="20" value={draftShape.strokeWidth} onChange={(e) => setDraftShape({ ...draftShape, strokeWidth: parseInt(e.target.value) })} style={{ width: '100%', marginBottom: '15px' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
               <button className="btn" style={{ flex: 1, background: '#e5e7eb' }} onClick={() => setIsBuilderOpen(false)}>Hủy</button>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={saveCustomShape}>Lưu</button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={saveCustomShape}>Lưu hình</button>
             </div>
           </div>
         </div>
