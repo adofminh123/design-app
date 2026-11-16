@@ -13,6 +13,16 @@ const ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 const SHAPE_BENDABLE = ['rect', 'polygon', 'star', 'bentShape'];
 const getBaseType = (el) => el.baseType || el.type;
 
+const isDarkColor = (hex) => {
+  if (!hex || hex.length < 7) return false;
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substr(0, 2), 16);
+  const g = parseInt(c.substr(2, 2), 16);
+  const b = parseInt(c.substr(4, 2), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum < 0.5;
+};
+
 const getSvgPoints = (cx, cy, r, sides, isStar = false, innerR = 0) => {
   const points = []; const num = isStar ? sides * 2 : sides;
   for (let i = 0; i < num; i++) {
@@ -607,7 +617,6 @@ function App() {
     } catch (error) { alert("Lỗi: " + error.message); setIsProcessing(false); }
   };
 
-  // ✅ FIX #2: getCenterPosition — clamp nếu tâm viewport ngoài canvas
   const getCenterPosition = () => {
     if (!stageRef.current) return { x: canvasSize.width / 2, y: canvasSize.height / 2 };
     let vw = mainAreaSize.width, vh = mainAreaSize.height;
@@ -697,7 +706,6 @@ function App() {
   const deleteCustomShape = async (e, id) => { e.stopPropagation(); const ok = await showConfirm("Xoá hình này khỏi thư viện?"); if (!ok) return; setCustomShapes(customShapes.filter(s => s.id !== id)); };
   const deleteAllCustomShapes = async () => { const ok = await showConfirm("XOÁ TẤT CẢ hình tự do?"); if (!ok) return; setCustomShapes([]); };
 
-  // ✅ FIX #1: addPathShape — offsetX/Y để centered
   const addPathShape = (pathData) => {
     setCurrentTool('select'); setIsRulerMode(false);
     const c = getCenterPosition();
@@ -729,14 +737,12 @@ function App() {
     saveToHistory(ne);
   };
 
-  // ✅ FIX #3: handleTransformEnd — bent text dùng Group (không có fontSize) + brush scale
   const handleTransformEnd = (e, el) => {
     const node = e.target;
     const sx = node.scaleX(), sy = node.scaleY();
     let np = { x: node.x(), y: node.y(), rotation: node.rotation() };
 
     if (el.type === 'text' && el.bendAmount && el.bendAmount !== 0) {
-      // Bent text render bằng Group → không có width/fontSize → chỉ lưu scale
       np = { ...np, scaleX: sx, scaleY: sy };
     } else if (['image', 'rect', 'path', 'icon', 'bentShape', 'brush'].includes(el.type)) {
       np = { ...np, scaleX: sx, scaleY: sy };
@@ -845,7 +851,11 @@ function App() {
     if (el.type === 'icon') {
       return (
         <Group key={el.id} {...commonProps} scaleX={el.scaleX || 1} scaleY={el.scaleY || 1} offsetX={el.offsetX ?? 0} offsetY={el.offsetY ?? 0}>
-          {el.data.map((p, i) => (<Path key={i} data={p} stroke={el.stroke} strokeWidth={el.strokeWidth} fill={el.fill} {...shadowProps} lineCap="round" lineJoin="round" />))}
+          {el.data.map((p, i) => (
+            <Path key={i} data={p} stroke={el.stroke} strokeWidth={el.strokeWidth} fill={el.fill}
+              {...shadowProps} {...blendProps}
+              lineCap="round" lineJoin="round" />
+          ))}
         </Group>
       );
     }
@@ -868,14 +878,12 @@ function App() {
       ...(el.type === 'star' && { innerRadius: el.innerRadius, outerRadius: el.outerRadius, numPoints: el.numPoints }),
       ...(el.type === 'arrow' && { points: el.points, pointerLength: el.pointerLength, pointerWidth: el.pointerWidth }),
       ...(el.type === 'image' && { src: el.src, width: el.width, height: el.height, scaleX: el.scaleX || 1, scaleY: el.scaleY || 1, brightness: el.brightness, contrast: el.contrast, blurRadius: el.blurRadius, saturate: el.saturate }),
-      // ✅ FIX #4: Path có offsetX/Y + hitStrokeWidth
       ...(el.type === 'path' && {
         data: el.data[0],
         scaleX: el.scaleX || 1, scaleY: el.scaleY || 1,
         offsetX: el.offsetX ?? 0, offsetY: el.offsetY ?? 0,
         hitStrokeWidth: Math.max(20, (el.strokeWidth || 3) * 3)
       }),
-      // ✅ FIX #4: Brush có scale + hitStrokeWidth
       ...(el.type === 'brush' && {
         points: el.points, tension: el.tension,
         scaleX: el.scaleX || 1, scaleY: el.scaleY || 1,
@@ -1135,20 +1143,36 @@ function App() {
 
               <div style={{ marginBottom: '15px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 'bold' }}>Blend mode:</label>
-                <select value={selectedEl.blendMode || 'source-over'} onChange={(e) => updateElement(selectedId, { blendMode: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', marginTop: '4px' }}>
-                  <option value="source-over">Bình thường</option>
-                  <option value="multiply">Multiply</option>
-                  <option value="screen">Screen</option>
-                  <option value="overlay">Overlay</option>
-                  <option value="darken">Darken</option>
-                  <option value="lighten">Lighten</option>
-                  <option value="color-dodge">Color Dodge</option>
-                  <option value="color-burn">Color Burn</option>
-                  <option value="hard-light">Hard Light</option>
-                  <option value="soft-light">Soft Light</option>
-                  <option value="difference">Difference</option>
-                  <option value="exclusion">Exclusion</option>
-                </select>
+                <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginTop: '4px' }}>
+                  <select value={selectedEl.blendMode || 'source-over'} onChange={(e) => updateElement(selectedId, { blendMode: e.target.value })}
+                    style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}>
+                    <option value="source-over">Bình thường</option>
+                    <option value="multiply">Multiply</option>
+                    <option value="screen">Screen</option>
+                    <option value="overlay">Overlay</option>
+                    <option value="darken">Darken</option>
+                    <option value="lighten">Lighten</option>
+                    <option value="color-dodge">Color Dodge</option>
+                    <option value="color-burn">Color Burn</option>
+                    <option value="hard-light">Hard Light</option>
+                    <option value="soft-light">Soft Light</option>
+                    <option value="difference">Difference</option>
+                    <option value="exclusion">Exclusion</option>
+                  </select>
+                  <button onClick={() => setBgColor(isDarkColor(bgColor) ? '#ffffff' : '#1f2937')}
+                    title="Đổi nền sáng/tối để test blend mode"
+                    style={{ padding: '8px 10px', borderRadius: '4px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer', fontSize: '14px' }}>
+                    {isDarkColor(bgColor) ? '☀️' : '🌙'}
+                  </button>
+                </div>
+                {selectedEl.blendMode && selectedEl.blendMode !== 'source-over' && (
+                  <div style={{ marginTop: '8px', padding: '8px', background: '#fef3c7', borderRadius: '4px', border: '1px solid #fde047' }}>
+                    <p style={{ margin: 0, fontSize: '11px', color: '#92400e', lineHeight: 1.5 }}>
+                      ⚠️ Blend mode hòa trộn shape với <strong>nền và vật thể bên dưới</strong>. Nếu shape biến mất → đổi màu nền hoặc đổi vị trí.
+                      <br />💡 Bấm <strong>{isDarkColor(bgColor) ? '☀️' : '🌙'}</strong> để đổi nền test nhanh.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {selectedEl.type === 'image' && (
