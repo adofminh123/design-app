@@ -8,7 +8,6 @@ import * as LucideIcons from 'lucide-react';
 import ShapeLibrary from './components/ShapeLibrary';
 import './App.css';
 
-// ============= SVG ICON SET =============
 const ICON_PATHS = {
   eye: <><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></>,
   eyeOff: <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></>,
@@ -1222,7 +1221,6 @@ function App() {
 
               {selectedEl.type === 'text' && (
                 <div style={{ marginBottom: '15px' }}>
-                  {/* KIỂU CHỮ */}
                   <div style={{ background: '#ecfdf5', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
                     <h4 style={{ fontWeight: 'bold', color: '#065f46', marginBottom: '8px', fontSize: '13px' }}>Kiểu chữ</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
@@ -1253,7 +1251,6 @@ function App() {
                     </div>
                   </div>
 
-                  {/* HIỆU ỨNG CHỮ */}
                   <div style={{ background: '#fef2f2', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
                     <h4 style={{ fontWeight: 'bold', color: '#991b1b', marginBottom: '8px', fontSize: '13px' }}>Hiệu ứng chữ</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '5px' }}>
@@ -1275,7 +1272,6 @@ function App() {
                     </div>
                   </div>
 
-                  {/* HOA/THƯỜNG */}
                   <div style={{ marginBottom: '10px' }}>
                     <label style={{ fontSize: '13px', display: 'block', marginBottom: '4px' }}>Kiểu chữ hoa/thường:</label>
                     <div style={{ display: 'flex', gap: '4px' }}>
@@ -1302,13 +1298,11 @@ function App() {
                     </div>
                   </div>
 
-                  {/* NỘI DUNG CHỮ */}
                   <div className="input-group" style={{ marginBottom: '10px' }}>
                     <label style={{ fontSize: '13px' }}>Nội dung chữ:</label>
                     <input type="text" value={selectedEl.text} onChange={(e) => { const v = e.target.value; setElements(elements.map(el => el.id === selectedId ? { ...el, text: v } : el)); }} onBlur={() => saveToHistory(elements)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }} />
                   </div>
 
-                  {/* FONT */}
                   <div className="input-group" style={{ marginBottom: '10px' }}>
                     <label style={{ fontSize: '13px' }}>Font chữ:</label>
                     <select value={selectedEl.fontFamily} onChange={(e) => updateElement(selectedId, { fontFamily: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}>
@@ -1317,14 +1311,46 @@ function App() {
                     </select>
                   </div>
 
-                  {/* B I U */}
+                  <div style={{ marginBottom: '10px' }}>
+                    <label style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span>Cỡ chữ:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <input
+                          type="number"
+                          key={`fs-${selectedId}-${selectedEl.fontSize}`}
+                          defaultValue={selectedEl.fontSize || 40}
+                          min={8}
+                          max={500}
+                          step={1}
+                          onBlur={(e) => {
+                            const v = parseInt(e.target.value);
+                            if (!isNaN(v) && v >= 8 && v <= 500) updateElement(selectedId, { fontSize: v });
+                            else e.target.value = String(selectedEl.fontSize || 40);
+                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                          style={{ width: '65px', padding: '4px 6px', fontSize: '13px', border: '1px solid #ccc', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold' }}
+                        />
+                        <span style={{ fontSize: '12px', color: '#6b7280' }}>px</span>
+                      </div>
+                    </label>
+                    <input
+                      type="range"
+                      min={8} max={300} step={1}
+                      value={Math.min(selectedEl.fontSize || 40, 300)}
+                      onChange={(e) => updateElement(selectedId, { fontSize: parseInt(e.target.value) })}
+                      style={{ width: '100%' }}
+                    />
+                    {selectedEl.fontSize > 300 && (
+                      <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#6b7280', fontStyle: 'italic' }}>Slider tối đa 300px — gõ số để dùng cỡ lớn hơn</p>
+                    )}
+                  </div>
+
                   <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
                     <button className="btn" style={{ flex: 1, background: selectedEl.fontStyle?.includes('bold') ? '#bfdbfe' : '#fff', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', padding: '8px' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'bold') })} title="In đậm"><Icon name="bold" size={16} /></button>
                     <button className="btn" style={{ flex: 1, background: selectedEl.fontStyle?.includes('italic') ? '#bfdbfe' : '#fff', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', padding: '8px' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'italic') })} title="In nghiêng"><Icon name="italic" size={16} /></button>
                     <button className="btn" style={{ flex: 1, background: selectedEl.textDecoration === 'underline' ? '#bfdbfe' : '#fff', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', padding: '8px' }} onClick={() => updateElement(selectedId, { textDecoration: selectedEl.textDecoration === 'underline' ? '' : 'underline' })} title="Gạch chân"><Icon name="underline" size={16} /></button>
                   </div>
 
-                  {/* LETTER SPACING + LINE HEIGHT */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', marginBottom: '10px' }}>
                     <div>
                       <label style={{ fontSize: '12px' }}>Khoảng cách chữ: {selectedEl.letterSpacing || 0}px</label>
@@ -1336,7 +1362,6 @@ function App() {
                     </div>
                   </div>
 
-                  {/* VIỀN CHỮ */}
                   <div style={{ background: '#dbeafe', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                       <input type="checkbox" checked={selectedEl.textStrokeEnabled || false} onChange={(e) => updateElement(selectedId, { textStrokeEnabled: e.target.checked })} />
@@ -1352,7 +1377,6 @@ function App() {
                     </>)}
                   </div>
 
-                  {/* BẺ CONG */}
                   <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '6px' }}>
                     <h4 style={{ fontWeight: 'bold', color: '#92400e', marginBottom: '10px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><Icon name="bend" size={16} /> Bẻ cong chữ</h4>
                     <label style={{ fontSize: '13px' }}>Độ cong: {selectedEl.bendAmount || 0}%</label>
