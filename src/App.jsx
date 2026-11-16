@@ -61,7 +61,6 @@ const ICON_PATHS = {
   alignCenterV: <><line x1="12" y1="3" x2="12" y2="21"/><line x1="8" y1="6" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="18"/></>,
   alignBottom: <><line x1="6" y1="3" x2="6" y2="21"/><line x1="10" y1="3" x2="10" y2="17"/><line x1="14" y1="3" x2="14" y2="21"/><line x1="18" y1="3" x2="18" y2="17"/></>,
   copy: <><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>,
-  droplet: <><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></>,
   sliders: <><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></>,
   settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
 };
@@ -180,6 +179,55 @@ const initLegacyProject = () => {
 
 const MENU_ITEM = { display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '10px 14px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '13px', color: '#1f2937' };
 
+const TEXT_STYLES = [
+  { id: 'display',   name: 'Display',    fontFamily: 'Bungee',           fontSize: 72, fontStyle: 'normal', fill: '#1f2937', letterSpacing: 0, lineHeight: 1.1 },
+  { id: 'heading',   name: 'Tiêu đề',    fontFamily: 'Anton',            fontSize: 64, fontStyle: 'normal', fill: '#1f2937', letterSpacing: -1, lineHeight: 1.1 },
+  { id: 'tech',      name: 'Tech',       fontFamily: 'Orbitron',         fontSize: 48, fontStyle: 'bold', fill: '#3b82f6', letterSpacing: 2, lineHeight: 1.2 },
+  { id: 'handwrite', name: 'Viết tay',   fontFamily: 'Permanent Marker', fontSize: 48, fontStyle: 'normal', fill: '#1f2937', letterSpacing: 0, lineHeight: 1.3 },
+  { id: 'script',    name: 'Cách điệu',  fontFamily: 'Dancing Script',   fontSize: 56, fontStyle: 'bold', fill: '#8b5cf6', letterSpacing: 0, lineHeight: 1.2 },
+  { id: 'bold',      name: 'Đậm',        fontFamily: 'Montserrat',       fontSize: 40, fontStyle: 'bold', fill: '#1f2937', letterSpacing: 0, lineHeight: 1.2 },
+  { id: 'body',      name: 'Nội dung',   fontFamily: 'Roboto',           fontSize: 20, fontStyle: 'normal', fill: '#374151', letterSpacing: 0, lineHeight: 1.5 },
+  { id: 'quote',     name: 'Trích dẫn',  fontFamily: 'Bebas Neue',       fontSize: 36, fontStyle: 'normal', fill: '#6b7280', letterSpacing: 1, lineHeight: 1.4 },
+];
+
+const TEXT_EFFECTS = [
+  { id: 'none',    name: 'Không' },
+  { id: 'shadow',  name: 'Đổ bóng' },
+  { id: 'neon',    name: 'Neon' },
+  { id: 'outline', name: 'Viền ngoài' },
+  { id: 'hollow',  name: 'Rỗng' },
+  { id: 'lift',    name: 'Nổi khối' },
+  { id: 'echo',    name: 'Bóng mờ' },
+];
+
+const applyTextTransform = (text, transform) => {
+  if (!transform || transform === 'none') return text;
+  if (transform === 'uppercase') return text.toUpperCase();
+  if (transform === 'lowercase') return text.toLowerCase();
+  if (transform === 'capitalize') return text.replace(/\b\w/g, c => c.toUpperCase());
+  return text;
+};
+
+const getActiveTextStyleId = (el) => {
+  const match = TEXT_STYLES.find(p =>
+    p.fontFamily === (el.fontFamily || 'Montserrat') &&
+    p.fontSize === (el.fontSize || 40) &&
+    (p.fontStyle || 'normal') === (el.fontStyle || 'normal') &&
+    p.letterSpacing === (el.letterSpacing || 0)
+  );
+  return match ? match.id : 'custom';
+};
+
+const getTextEffectProps = (el) => {
+  const effect = el.textEffect || 'none';
+  if (effect === 'shadow') return { shadowColor: '#000000', shadowBlur: 10, shadowOffsetX: 4, shadowOffsetY: 4, shadowOpacity: 0.5 };
+  if (effect === 'neon') return { shadowColor: el.fill || '#3b82f6', shadowBlur: 30, shadowOffsetX: 0, shadowOffsetY: 0, shadowOpacity: 1, shadowForStrokeEnabled: true };
+  if (effect === 'lift') return { shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 8, shadowOffsetY: 8, shadowOpacity: 0.35 };
+  if (effect === 'echo') return { shadowColor: el.fill || '#3b82f6', shadowBlur: 0, shadowOffsetX: 8, shadowOffsetY: 8, shadowOpacity: 0.5 };
+  if (effect === 'outline') return { fillAfterStrokeEnabled: true };
+  return {};
+};
+
 const clampStagePos = (pos, mainAreaSize, canvasSize, stageScale) => {
   const sw = canvasSize.width * stageScale, sh = canvasSize.height * stageScale;
   const mvx = Math.min(80, sw * 0.25), mvy = Math.min(80, sh * 0.25);
@@ -270,22 +318,22 @@ const CanvasBg = ({ bgImage, bgColor, canvasSize }) => {
   );
 };
 
-const ArcText = ({ text, fontSize, fontFamily, fontStyle, fill, stroke, strokeWidth, bendAmount, textDecoration, align, width, ...rest }) => {
+const ArcText = ({ text, fontSize, fontFamily, fontStyle, fill, stroke, strokeWidth, bendAmount, textDecoration, align, width, letterSpacing = 0, lineHeight = 1.2, effectProps = {}, ...rest }) => {
   const baseOffsetX = (width || 200) / 2; const baseOffsetY = (fontSize || 40) / 2;
   if (!bendAmount || bendAmount === 0) {
-    return <Text {...rest} text={text} fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle} fill={fill} stroke={stroke} strokeWidth={strokeWidth} textDecoration={textDecoration} align={align} width={width} />;
+    return <Text {...rest} {...effectProps} text={text} fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle} fill={fill} stroke={stroke} strokeWidth={strokeWidth} textDecoration={textDecoration} align={align} width={width} letterSpacing={letterSpacing} lineHeight={lineHeight} />;
   }
   const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
   const isBold = fontStyle && fontStyle.includes('bold') ? 'bold ' : '';
   const isItalic = fontStyle && fontStyle.includes('italic') ? 'italic ' : '';
   ctx.font = `${isItalic}${isBold}${fontSize}px ${fontFamily || 'Arial'}`;
   const chars = [...text];
-  const charWidths = chars.map(c => ctx.measureText(c).width);
+  const charWidths = chars.map(c => ctx.measureText(c).width + letterSpacing);
   const totalWidth = charWidths.reduce((a, b) => a + b, 0);
   if (totalWidth === 0) return null;
   const bendRad = (bendAmount / 100) * Math.PI;
   const absBendRad = Math.abs(bendRad);
-  if (absBendRad < 0.001) return <Text {...rest} text={text} fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle} fill={fill} stroke={stroke} strokeWidth={strokeWidth} textDecoration={textDecoration} align={align} width={width} />;
+  if (absBendRad < 0.001) return <Text {...rest} {...effectProps} text={text} fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle} fill={fill} stroke={stroke} strokeWidth={strokeWidth} textDecoration={textDecoration} align={align} width={width} letterSpacing={letterSpacing} lineHeight={lineHeight} />;
   const radius = totalWidth / absBendRad;
   let cumWidth = 0;
   const charNodes = chars.map((char, i) => {
@@ -297,7 +345,7 @@ const ArcText = ({ text, fontSize, fontFamily, fontStyle, fill, stroke, strokeWi
     if (bendAmount > 0) { charX = Math.sin(angle) * radius; charY = radius - Math.cos(angle) * radius; charRotation = angle * (180 / Math.PI); }
     else { charX = Math.sin(angle) * radius; charY = -radius + Math.cos(angle) * radius; charRotation = -angle * (180 / Math.PI); }
     return (
-      <Text key={i} text={char}
+      <Text key={i} text={char} {...effectProps}
         x={charX + baseOffsetX} y={charY + baseOffsetY} rotation={charRotation}
         fontSize={fontSize} fontFamily={fontFamily} fontStyle={fontStyle}
         fill={fill} stroke={stroke} strokeWidth={strokeWidth}
@@ -307,7 +355,6 @@ const ArcText = ({ text, fontSize, fontFamily, fontStyle, fill, stroke, strokeWi
   return <Group {...rest}>{charNodes}</Group>;
 };
 
-// ============= ICON BUTTON HELPER =============
 const IconBtn = ({ icon, size = 14, label, active, onClick, title, variant = 'default', disabled }) => {
   const bg = active ? '#3b82f6' : variant === 'danger' ? '#fee2e2' : variant === 'success' ? '#10b981' : '#fff';
   const color = active ? '#fff' : variant === 'danger' ? '#ef4444' : variant === 'success' ? '#fff' : '#333';
@@ -379,7 +426,7 @@ function App() {
     if (document.getElementById('pixelcraft-fonts')) return;
     const link = document.createElement('link');
     link.id = 'pixelcraft-fonts'; link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Roboto:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&family=Anton&family=Bebas+Neue&family=Dancing+Script:ital,wght@0,400;0,700;1,400;1,700&display=swap';
+    link.href = 'https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Roboto:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&family=Anton&family=Bebas+Neue&family=Dancing+Script:ital,wght@0,400;0,700;1,400;1,700&family=Bungee&family=Orbitron:wght@400;700;900&family=Permanent+Marker&display=swap';
     document.head.appendChild(link);
   }, []);
 
@@ -774,7 +821,7 @@ function App() {
     const c = getCenterPosition();
     const base = { id: uuidv4(), rotation: 0, scaleX: 1, scaleY: 1, stroke: '#000000', strokeWidth: 0, opacity: 1, shadowEnabled: false, shadowColor: '#000000', blendMode: 'source-over' };
     let newEl = {};
-    if (type === 'text') newEl = { ...base, type, x: c.x - 100, y: c.y - 20, text: 'Văn bản mới', fontSize: 40, fontFamily: 'Montserrat', fontStyle: 'normal', fill: '#000000', width: 200, align: 'center', bendAmount: 0, textStrokeEnabled: false, textStrokeColor: '#000000', textStrokeWidth: 0 };
+    if (type === 'text') newEl = { ...base, type, x: c.x - 100, y: c.y - 20, text: 'Văn bản mới', fontSize: 40, fontFamily: 'Montserrat', fontStyle: 'normal', fill: '#000000', width: 200, align: 'center', bendAmount: 0, textStrokeEnabled: false, textStrokeColor: '#000000', textStrokeWidth: 0, letterSpacing: 0, lineHeight: 1.2, textTransform: 'none', textEffect: 'none' };
     if (type === 'rect') newEl = { ...base, type, x: c.x - 100, y: c.y - 75, width: 200, height: 150, cornerRadius: 0, fill: '#3b82f6', dashEnabled: false, dashPattern: [10, 5], lineCap: 'butt', lineJoin: 'miter', fillType: 'solid', gradientColor1: '#3b82f6', gradientColor2: '#8b5cf6', gradientAngle: 0 };
     if (type === 'circle') newEl = { ...base, type, x: c.x, y: c.y, radius: 80, fill: '#ef4444', dashEnabled: false, dashPattern: [10, 5], lineCap: 'butt', lineJoin: 'miter', fillType: 'solid', gradientColor1: '#ef4444', gradientColor2: '#f97316', gradientAngle: 0 };
     if (type === 'triangle' || type === 'polygon') newEl = { ...base, type: 'polygon', x: c.x, y: c.y, radius: 80, sides: type === 'triangle' ? 3 : 5, fill: '#eab308', dashEnabled: false, dashPattern: [10, 5], lineCap: 'butt', lineJoin: 'miter', fillType: 'solid', gradientColor1: '#eab308', gradientColor2: '#84cc16', gradientAngle: 0 };
@@ -964,9 +1011,40 @@ function App() {
       return <Path key={el.id} {...commonProps} {...gradientProps} data={buildBentPath(el)} fill={el.fillType === 'gradient' ? undefined : el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} scaleX={el.scaleX || 1} scaleY={el.scaleY || 1} />;
     }
     if (el.type === 'text') {
-      const tp = { ...commonProps, text: el.text, fontSize: el.fontSize, fontFamily: el.fontFamily || 'Montserrat', fontStyle: el.fontStyle || 'normal', textDecoration: el.textDecoration || '', align: el.align, fill: el.fill, stroke: el.textStrokeEnabled ? el.textStrokeColor : undefined, strokeWidth: el.textStrokeEnabled ? el.textStrokeWidth : undefined, width: el.width, bendAmount: el.bendAmount || 0 };
-      if (el.bendAmount && el.bendAmount !== 0) return <ArcText key={el.id} {...tp} />;
-      return <Text key={el.id} {...tp} />;
+      const effect = el.textEffect || 'none';
+      const effectProps = getTextEffectProps(el);
+      const isHollow = effect === 'hollow';
+      const isOutline = effect === 'outline';
+      const tp = {
+        ...commonProps,
+        text: applyTextTransform(el.text, el.textTransform),
+        fontSize: el.fontSize,
+        fontFamily: el.fontFamily || 'Montserrat',
+        fontStyle: el.fontStyle || 'normal',
+        textDecoration: el.textDecoration || '',
+        align: el.align,
+        fill: isHollow ? 'transparent' : el.fill,
+        stroke: el.textStrokeEnabled
+          ? el.textStrokeColor
+          : isOutline
+            ? '#000000'
+            : isHollow
+              ? el.fill
+              : undefined,
+        strokeWidth: el.textStrokeEnabled
+          ? el.textStrokeWidth
+          : (isOutline || isHollow)
+            ? (el.textStrokeWidth || 2)
+            : undefined,
+        width: el.width,
+        bendAmount: el.bendAmount || 0,
+        letterSpacing: el.letterSpacing || 0,
+        lineHeight: el.lineHeight || 1.2,
+      };
+      if (el.bendAmount && el.bendAmount !== 0) {
+        return <ArcText key={el.id} {...tp} effectProps={effectProps} />;
+      }
+      return <Text key={el.id} {...tp} {...effectProps} />;
     }
 
     const finalProps = {
@@ -1144,21 +1222,121 @@ function App() {
 
               {selectedEl.type === 'text' && (
                 <div style={{ marginBottom: '15px' }}>
+                  {/* KIỂU CHỮ */}
+                  <div style={{ background: '#ecfdf5', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
+                    <h4 style={{ fontWeight: 'bold', color: '#065f46', marginBottom: '8px', fontSize: '13px' }}>Kiểu chữ</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
+                      {TEXT_STYLES.map(style => {
+                        const isActive = getActiveTextStyleId(selectedEl) === style.id;
+                        return (
+                          <button key={style.id}
+                            onClick={() => updateElement(selectedId, {
+                              fontFamily: style.fontFamily,
+                              fontSize: style.fontSize,
+                              fontStyle: style.fontStyle,
+                              fill: style.fill,
+                              letterSpacing: style.letterSpacing,
+                              lineHeight: style.lineHeight,
+                            })}
+                            style={{
+                              padding: '8px 6px', borderRadius: '4px',
+                              border: isActive ? '2px solid #10b981' : '1px solid #ccc',
+                              cursor: 'pointer', background: isActive ? '#d1fae5' : '#fff',
+                              fontFamily: style.fontFamily,
+                              fontWeight: style.fontStyle.includes('bold') ? 'bold' : 'normal',
+                              fontSize: '12px', color: '#1f2937',
+                            }}>
+                            {style.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* HIỆU ỨNG CHỮ */}
+                  <div style={{ background: '#fef2f2', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
+                    <h4 style={{ fontWeight: 'bold', color: '#991b1b', marginBottom: '8px', fontSize: '13px' }}>Hiệu ứng chữ</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '5px' }}>
+                      {TEXT_EFFECTS.map(effect => {
+                        const isActive = (selectedEl.textEffect || 'none') === effect.id;
+                        return (
+                          <button key={effect.id}
+                            onClick={() => updateElement(selectedId, { textEffect: effect.id })}
+                            style={{
+                              padding: '6px 4px', borderRadius: '4px',
+                              border: isActive ? '2px solid #ef4444' : '1px solid #ccc',
+                              cursor: 'pointer', background: isActive ? '#fee2e2' : '#fff',
+                              fontSize: '11px', fontWeight: 'bold', color: '#1f2937',
+                            }}>
+                            {effect.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* HOA/THƯỜNG */}
+                  <div style={{ marginBottom: '10px' }}>
+                    <label style={{ fontSize: '13px', display: 'block', marginBottom: '4px' }}>Kiểu chữ hoa/thường:</label>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {[
+                        { id: 'none', label: 'Aa' },
+                        { id: 'uppercase', label: 'AA' },
+                        { id: 'lowercase', label: 'aa' },
+                        { id: 'capitalize', label: 'Ab' },
+                      ].map(t => {
+                        const isActive = (selectedEl.textTransform || 'none') === t.id;
+                        return (
+                          <button key={t.id}
+                            onClick={() => updateElement(selectedId, { textTransform: t.id })}
+                            style={{
+                              flex: 1, padding: '6px', borderRadius: '4px',
+                              border: isActive ? '2px solid #3b82f6' : '1px solid #ccc',
+                              background: isActive ? '#dbeafe' : '#fff',
+                              cursor: 'pointer', fontSize: '13px', fontWeight: 'bold',
+                            }}>
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* NỘI DUNG CHỮ */}
                   <div className="input-group" style={{ marginBottom: '10px' }}>
                     <label style={{ fontSize: '13px' }}>Nội dung chữ:</label>
                     <input type="text" value={selectedEl.text} onChange={(e) => { const v = e.target.value; setElements(elements.map(el => el.id === selectedId ? { ...el, text: v } : el)); }} onBlur={() => saveToHistory(elements)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100%' }} />
                   </div>
+
+                  {/* FONT */}
                   <div className="input-group" style={{ marginBottom: '10px' }}>
                     <label style={{ fontSize: '13px' }}>Font chữ:</label>
                     <select value={selectedEl.fontFamily} onChange={(e) => updateElement(selectedId, { fontFamily: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}>
                       <option value="Montserrat">Montserrat</option><option value="Roboto">Roboto</option><option value="Anton">Anton</option><option value="Bebas Neue">Bebas Neue</option><option value="Dancing Script">Dancing Script</option>
+                      <option value="Bungee">Bungee</option><option value="Orbitron">Orbitron</option><option value="Permanent Marker">Permanent Marker</option>
                     </select>
                   </div>
+
+                  {/* B I U */}
                   <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
                     <button className="btn" style={{ flex: 1, background: selectedEl.fontStyle?.includes('bold') ? '#bfdbfe' : '#fff', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', padding: '8px' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'bold') })} title="In đậm"><Icon name="bold" size={16} /></button>
                     <button className="btn" style={{ flex: 1, background: selectedEl.fontStyle?.includes('italic') ? '#bfdbfe' : '#fff', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', padding: '8px' }} onClick={() => updateElement(selectedId, { fontStyle: toggleFontStyle(selectedEl, 'italic') })} title="In nghiêng"><Icon name="italic" size={16} /></button>
                     <button className="btn" style={{ flex: 1, background: selectedEl.textDecoration === 'underline' ? '#bfdbfe' : '#fff', border: '1px solid #ccc', display: 'flex', justifyContent: 'center', padding: '8px' }} onClick={() => updateElement(selectedId, { textDecoration: selectedEl.textDecoration === 'underline' ? '' : 'underline' })} title="Gạch chân"><Icon name="underline" size={16} /></button>
                   </div>
+
+                  {/* LETTER SPACING + LINE HEIGHT */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', marginBottom: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px' }}>Khoảng cách chữ: {selectedEl.letterSpacing || 0}px</label>
+                      <input type="range" min="-5" max="20" value={selectedEl.letterSpacing || 0} onChange={(e) => updateElement(selectedId, { letterSpacing: parseInt(e.target.value) })} style={{ width: '100%' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px' }}>Chiều cao dòng: {selectedEl.lineHeight || 1.2}</label>
+                      <input type="range" min="0.8" max="3" step="0.1" value={selectedEl.lineHeight || 1.2} onChange={(e) => updateElement(selectedId, { lineHeight: parseFloat(e.target.value) })} style={{ width: '100%' }} />
+                    </div>
+                  </div>
+
+                  {/* VIỀN CHỮ */}
                   <div style={{ background: '#dbeafe', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                       <input type="checkbox" checked={selectedEl.textStrokeEnabled || false} onChange={(e) => updateElement(selectedId, { textStrokeEnabled: e.target.checked })} />
@@ -1173,6 +1351,8 @@ function App() {
                       <input type="range" min="0" max="10" value={selectedEl.textStrokeWidth || 0} onChange={(e) => updateElement(selectedId, { textStrokeWidth: parseInt(e.target.value) })} style={{ width: '100%' }} />
                     </>)}
                   </div>
+
+                  {/* BẺ CONG */}
                   <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '6px' }}>
                     <h4 style={{ fontWeight: 'bold', color: '#92400e', marginBottom: '10px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><Icon name="bend" size={16} /> Bẻ cong chữ</h4>
                     <label style={{ fontSize: '13px' }}>Độ cong: {selectedEl.bendAmount || 0}%</label>
